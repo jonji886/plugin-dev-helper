@@ -1,0 +1,9 @@
+{
+  "name": "plugin-dev-helper",
+  "version": "1.0.0",
+  "description": "插件开发 AI Agent - SDK 知识库",
+  "private": true,
+  "dependencies": {
+    "@manycore/idp-sdk": "^1.83.0"
+  }
+}

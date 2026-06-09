@@ -1,0 +1,25 @@
+[project]
+name = "plugin-dev-helper"
+version = "0.1.0"
+description = "插件开发 AI Agent - SDK 知识库与智能问答系统"
+requires-python = ">=3.9"
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "chromadb>=0.4.22",
+    "sentence-transformers>=2.2.2",
+    "langchain>=0.1.0",
+    "langgraph>=0.0.20",
+    "langchain-community>=0.0.10",
+    "pydantic>=2.5.0",
+    "tree-sitter>=0.20.4",
+    "tree-sitter-typescript>=0.20.3",
+    "networkx>=3.2.1",
+    "ragas>=0.1.0",
+    "datasets>=2.15.0",
+    "numpy>=1.24.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
