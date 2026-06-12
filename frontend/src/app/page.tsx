@@ -140,9 +140,9 @@ export default function Home() {
                 {/* Suggested questions */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6 w-full max-w-lg">
                   {[
-                    "IDP.Miniapp.exit 怎么使用？",
-                    "如何获取当前应用模式？",
-                    "上传临时存储数据的方法",
+                    "如何获取方案JSON？",
+                    "插件可以做什么？",
+                    "保存设计方案的接口是哪个",
                   ].map((q) => (
                     <button
                       key={q}

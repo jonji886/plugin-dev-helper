@@ -27,6 +27,23 @@ from langchain.callbacks.base import BaseCallbackHandler
 from vector_store import VectorStore
 
 
+# ========== 辅助函数 ==========
+
+def is_overview_query(query: str) -> bool:
+    """
+    判断是否为总览型问题。
+
+    总览型问题通常问"能做什么"、"有什么用"等，
+    应该优先召回概述/介绍类文档而不是具体 API 文档。
+    """
+    keywords = [
+        "可以做什么", "有什么用", "能做什么", "支持哪些",
+        "能力介绍", "介绍一下", "概述", "介绍下", "是什么",
+        "能干嘛", "做什么用", "功能介绍", "使用场景",
+    ]
+    return any(kw in query for kw in keywords)
+
+
 # ========== 状态定义 ==========
 
 class AgentState(TypedDict):
@@ -148,8 +165,14 @@ class Retriever:
     def __call__(self, state: AgentState) -> dict:
         query = state.get("rewritten_query") or state["current_query"]
 
+        # 判断是否为总览型问题，若是则对 overview 文档加权
+        boost_overview = is_overview_query(query)
+
         try:
-            results = self.vs.search(query, top_k=self.top_k)
+            if boost_overview:
+                results = self.vs.search_with_boost(query, top_k=self.top_k, boost_overview=True)
+            else:
+                results = self.vs.search(query, top_k=self.top_k)
         except Exception as e:
             print(f"[retrieve] Search failed: {e}")
             print(traceback.format_exc())
