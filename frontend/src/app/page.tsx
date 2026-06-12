@@ -7,6 +7,28 @@ import ChatMessage from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
 import ChatHistory from "@/components/ChatHistory";
 
+function getFriendlyErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (message.includes("无法连接到后端服务")) {
+    return message;
+  }
+
+  if (message.includes("回答生成失败")) {
+    return message;
+  }
+
+  if (message.includes("未配置模型密钥")) {
+    return message;
+  }
+
+  if (message.includes("API error")) {
+    return `接口请求失败：${message}`;
+  }
+
+  return `请求失败: ${message || "请检查网络连接或后端服务是否运行"}`;
+}
+
 export default function Home() {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [sessionId, setSessionId] = useState<string | undefined>();
@@ -37,7 +59,7 @@ export default function Home() {
     } catch (err: any) {
       const errorMsg: ChatMessageType = {
         role: "assistant",
-        content: `请求失败: ${err?.message || "请检查网络连接或后端服务是否运行"}`,
+        content: getFriendlyErrorMessage(err),
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
@@ -57,8 +79,13 @@ export default function Home() {
     try {
       const history = await getHistory(sid);
       setMessages(history as ChatMessageType[]);
-    } catch {
-      // ignore
+    } catch (err) {
+      setMessages([
+        {
+          role: "assistant",
+          content: getFriendlyErrorMessage(err),
+        },
+      ]);
     } finally {
       setLoading(false);
     }

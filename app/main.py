@@ -6,8 +6,15 @@ import os
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # 添加项目根目录到 path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# 自动加载项目根目录 .env
+load_dotenv(PROJECT_ROOT / ".env")
+print(f"[env] .env 加载: {'已找到' if (PROJECT_ROOT / '.env').exists() else '未找到'}")
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware

@@ -6,6 +6,7 @@
 
 import json
 import os
+import traceback
 from pathlib import Path
 from typing import Optional
 
@@ -46,8 +47,13 @@ class VectorStore:
     @property
     def embedding_model(self):
         if self._embedding_model is None:
-            from sentence_transformers import SentenceTransformer
-            self._embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+            try:
+                from sentence_transformers import SentenceTransformer
+                self._embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+            except Exception as e:
+                print(f"[vector] embedding model load failed: {e}")
+                print(traceback.format_exc())
+                raise
         return self._embedding_model
 
     def build_index(self, knowledge_index: list[dict], knowledge_dir: str = "data/knowledge"):
@@ -139,14 +145,19 @@ class VectorStore:
 
     def search(self, query: str, top_k: int = 5) -> list[dict]:
         """搜索最相关的知识单元"""
-        # 生成查询 embedding
-        query_embedding = self.embedding_model.encode([query]).tolist()[0]
+        try:
+            # 生成查询 embedding
+            query_embedding = self.embedding_model.encode([query]).tolist()[0]
 
-        # 检索
-        results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=min(top_k, self.collection.count()),
-        )
+            # 检索
+            results = self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=min(top_k, self.collection.count()),
+            )
+        except Exception as e:
+            print(f"[vector] search failed: {e}")
+            print(traceback.format_exc())
+            raise
 
         # 格式化结果
         formatted = []

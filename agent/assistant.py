@@ -12,6 +12,7 @@ Agent 节点:
 
 import json
 import os
+import traceback
 from pathlib import Path
 from typing import TypedDict, Optional, Annotated, Sequence
 from datetime import datetime
@@ -19,7 +20,7 @@ from datetime import datetime
 import operator
 
 from langgraph.graph import StateGraph, END
-from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
 from langchain_openai import ChatOpenAI
 from langchain.callbacks.base import BaseCallbackHandler
 
@@ -44,12 +45,17 @@ class AgentState(TypedDict):
 
 def get_llm():
     """获取 DeepSeek LLM 实例"""
-    api_key = os.environ.get("DEEPSEEK_API_KEY", "")
-    if not api_key:
-        print("[warn] DEEPSEEK_API_KEY 未设置，使用模拟模式")
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    if api_key:
+        print("[env] DEEPSEEK_API_KEY 已加载")
+    else:
+        print("[env] DEEPSEEK_API_KEY 未加载")
+        print("[warn] DEEPSEEK_API_KEY 未设置，使用本地兜底模式")
+        return None
+
     return ChatOpenAI(
         model="deepseek-chat",
-        api_key=api_key or "sk-placeholder",
+        api_key=api_key,
         base_url="https://api.deepseek.com/v1",
         temperature=0.1,
         max_tokens=4096,
@@ -75,6 +81,9 @@ class IntentRouter:
 
 问题: {query}
 意图:"""
+        if self.llm is None:
+            return {"intent": "general"}
+
         try:
             response = self.llm.invoke([HumanMessage(content=prompt)])
             intent = response.content.strip().lower()
@@ -82,6 +91,7 @@ class IntentRouter:
                 intent = "general"
         except Exception as e:
             print(f"[intent] LLM call failed: {e}")
+            print(traceback.format_exc())
             intent = "general"
 
         return {"intent": intent}
@@ -114,10 +124,15 @@ class QueryRewrite:
 当前问题: {query}
 
 重写后的问题（简洁准确）:"""
+        if self.llm is None:
+            return {"rewritten_query": query}
+
         try:
             response = self.llm.invoke([HumanMessage(content=prompt)])
             rewritten = response.content.strip()
-        except Exception:
+        except Exception as e:
+            print(f"[rewrite] LLM call failed: {e}")
+            print(traceback.format_exc())
             rewritten = query
 
         return {"rewritten_query": rewritten}
@@ -137,6 +152,7 @@ class Retriever:
             results = self.vs.search(query, top_k=self.top_k)
         except Exception as e:
             print(f"[retrieve] Search failed: {e}")
+            print(traceback.format_exc())
             results = []
 
         return {"retrieved_docs": results}
@@ -215,13 +231,19 @@ class AnswerGenerator:
             answer = "抱歉，我在知识库中没有找到相关的信息。请尝试用其他方式描述你的问题，或查阅某设计平台开放平台官方文档。"
             return {"answer": answer}
 
-        # 构建 prompt
-        messages = [
-            {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": f"""请基于以下知识库内容回答问题。
+        system_content = self.system_prompt or "你是一个严谨的 SDK 问答助手，请根据提供的知识库内容回答问题。"
+        context_text = context[:6000]
+
+        if self.llm is None:
+            return {"answer": f"当前未配置模型密钥，以下是知识库中的相关信息：\n\n{context_text[:2000]}"}
+
+        try:
+            response = self.llm.invoke([
+                SystemMessage(content=system_content),
+                HumanMessage(content=f"""请基于以下知识库内容回答问题。
 
 ## 知识库内容
-{context[:8000]}
+{context_text}
 
 ## 用户问题
 {query}
@@ -231,18 +253,13 @@ class AnswerGenerator:
 2. 如果涉及函数/API，提供代码示例
 3. 必须引用来源（文件名和SDK版本）
 4. 列出参数说明
-5. 如果知识库信息不足，明确说明"""}
-        ]
-
-        try:
-            response = self.llm.invoke([
-                HumanMessage(content=messages[0]["content"]),
-                HumanMessage(content=messages[1]["content"]),
+5. 如果知识库信息不足，明确说明""")
             ])
             answer = response.content
         except Exception as e:
             print(f"[answer] LLM call failed: {e}")
-            answer = f"抱歉，生成答案时遇到错误。以下是我在知识库中找到的相关信息：\n\n{context[:2000]}"
+            print(traceback.format_exc())
+            answer = f"抱歉，回答生成失败，请稍后重试。以下是我在知识库中找到的相关信息：\n\n{context_text[:2000]}"
 
         return {"answer": answer}
 
@@ -350,6 +367,12 @@ class AgentRunner:
             else:
                 messages.append(AIMessage(content=msg["content"]))
 
+        result = {
+            "answer": "",
+            "intent": "",
+            "retrieved_docs": [],
+        }
+
         # 运行 Agent
         try:
             result = self.agent.invoke({
@@ -365,6 +388,7 @@ class AgentRunner:
             answer = result.get("answer", "")
         except Exception as e:
             print(f"[agent] Error: {e}")
+            print(traceback.format_exc())
             answer = f"抱歉，处理您的问题时出现错误，请稍后重试。错误信息: {str(e)}"
 
         # 保存 AI 回复
