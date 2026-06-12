@@ -3,7 +3,7 @@
     "recall_at_5": false
   },
   "answer": {
-    "correctness": 0.1,
+    "correctness": 0.08695652173913043,
     "faithfulness": 1.0
   },
   "details": [
@@ -13,8 +13,8 @@
       "faithful": true,
       "has_source": true,
       "keyword_ratio": 1.0,
-      "answer_length": 401,
-      "time": 3.3
+      "answer_length": 2025,
+      "time": 0.1
     },
     {
       "qid": "q002",
@@ -22,8 +22,8 @@
       "faithful": true,
       "has_source": false,
       "keyword_ratio": 0.0,
-      "answer_length": 390,
-      "time": 3.6
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q003",
@@ -31,8 +31,8 @@
       "faithful": true,
       "has_source": true,
       "keyword_ratio": 0.33,
-      "answer_length": 1484,
-      "time": 5.6
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q004",
@@ -40,8 +40,8 @@
       "faithful": true,
       "has_source": true,
       "keyword_ratio": 0.0,
-      "answer_length": 1608,
-      "time": 6.4
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q005",
@@ -49,8 +49,8 @@
       "faithful": true,
       "has_source": true,
       "keyword_ratio": 0.0,
-      "answer_length": 1221,
-      "time": 4.5
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q006",
@@ -58,8 +58,8 @@
       "faithful": true,
       "has_source": true,
       "keyword_ratio": 0.0,
-      "answer_length": 403,
-      "time": 3.0
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q007",
@@ -67,8 +67,8 @@
       "faithful": true,
       "has_source": true,
       "keyword_ratio": 0.0,
-      "answer_length": 409,
-      "time": 3.2
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q008",
@@ -76,8 +76,8 @@
       "faithful": true,
       "has_source": false,
       "keyword_ratio": 0.0,
-      "answer_length": 502,
-      "time": 4.0
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q009",
@@ -85,8 +85,8 @@
       "faithful": true,
       "has_source": true,
       "keyword_ratio": 0.0,
-      "answer_length": 1023,
-      "time": 4.6
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q010",
@@ -94,8 +94,8 @@
       "faithful": true,
       "has_source": true,
       "keyword_ratio": 0.0,
-      "answer_length": 995,
-      "time": 4.0
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q011",
@@ -103,8 +103,8 @@
       "faithful": true,
       "has_source": true,
       "keyword_ratio": 0.0,
-      "answer_length": 497,
-      "time": 3.2
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q012",
@@ -112,8 +112,8 @@
       "faithful": true,
       "has_source": true,
       "keyword_ratio": 0.0,
-      "answer_length": 1409,
-      "time": 6.5
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q013",
@@ -121,8 +121,8 @@
       "faithful": true,
       "has_source": true,
       "keyword_ratio": 0.0,
-      "answer_length": 841,
-      "time": 3.8
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q014",
@@ -130,17 +130,17 @@
       "faithful": true,
       "has_source": true,
       "keyword_ratio": 0.0,
-      "answer_length": 1346,
-      "time": 5.2
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q015",
       "correct": false,
       "faithful": true,
-      "has_source": true,
+      "has_source": false,
       "keyword_ratio": 0.0,
-      "answer_length": 411,
-      "time": 3.1
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q016",
@@ -148,8 +148,8 @@
       "faithful": true,
       "has_source": false,
       "keyword_ratio": 0.0,
-      "answer_length": 563,
-      "time": 4.0
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q017",
@@ -157,17 +157,17 @@
       "faithful": true,
       "has_source": true,
       "keyword_ratio": 0.0,
-      "answer_length": 1014,
-      "time": 4.3
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q018",
       "correct": false,
       "faithful": true,
-      "has_source": true,
+      "has_source": false,
       "keyword_ratio": 0.0,
-      "answer_length": 804,
-      "time": 3.7
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q019",
@@ -175,8 +175,8 @@
       "faithful": true,
       "has_source": true,
       "keyword_ratio": 0.0,
-      "answer_length": 1619,
-      "time": 6.5
+      "answer_length": 2025,
+      "time": 0.0
     },
     {
       "qid": "q020",
@@ -184,8 +184,35 @@
       "faithful": true,
       "has_source": true,
       "keyword_ratio": 0.0,
-      "answer_length": 1175,
-      "time": 4.7
+      "answer_length": 2025,
+      "time": 0.0
+    },
+    {
+      "qid": "rag001",
+      "correct": false,
+      "faithful": true,
+      "has_source": false,
+      "keyword_ratio": 0.0,
+      "answer_length": 2025,
+      "time": 0.0
+    },
+    {
+      "qid": "rag002",
+      "correct": false,
+      "faithful": true,
+      "has_source": true,
+      "keyword_ratio": 0.0,
+      "answer_length": 2025,
+      "time": 0.0
+    },
+    {
+      "qid": "rag003",
+      "correct": false,
+      "faithful": true,
+      "has_source": false,
+      "keyword_ratio": 0.0,
+      "answer_length": 2025,
+      "time": 0.0
     }
   ]
 }

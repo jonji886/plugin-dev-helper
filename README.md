@@ -21,39 +21,57 @@
 - **多轮对话**：支持上下文感知的连续对话
 - **来源引用**：所有回答附带 SDK 版本和源文件引用，保证可信
 
+## 项目架构图
+
+```mermaid
+flowchart LR
+  U[用户 / 浏览器] --> FE[Next.js 16 + React 19 前端]
+  FE --> CS[chatService.ts]
+  CS --> API[FastAPI 后端\napp/main.py]
+  API --> AR[AgentRunner.chat()]
+  AR --> LG[LangGraph Workflow\nagent/assistant.py]
+  LG --> IR[IntentRouter]
+  IR --> QR[QueryRewrite]
+  QR --> RT[Retriever]
+  RT --> VS[VectorStore.search()\nChroma + sentence-transformers]
+  RT --> GE[GraphExpander]
+  GE --> KG[data/knowledge/*.md]
+  GE --> GD[data/graph/dependency_graph.json]
+  GE --> AG[AnswerGenerator]
+  AG --> LLM[DeepSeek Chat\nChatOpenAI]
+  AG --> API
+  API --> FE
+
+  subgraph OFFLINE[离线知识构建链路]
+    SRC[TypeScript SDK\nindex.d.ts] --> PARSER[SDKParser]
+    PARSER --> KB[KnowledgeBuilder]
+    PARSER --> GB[GraphBuilder]
+    KB --> KNOW[data/knowledge/*.md + .json + _index.json]
+    GB --> GRAPH[data/graph/dependency_graph.json]
+    KNOW --> VSB[VectorStore.build_index()]
+    VSB --> CHROMA[data/chroma]
+  end
+```
+
 ## 技术架构
 
-```
-TypeScript SDK (*.d.ts)
-        ↓
-AST Parser (tree-sitter)
-        ↓
-Knowledge Builder
-        ↓
-Type Dependency Graph
-        ↓
-Vector Store (Chroma + all-MiniLM-L6-v2)
-        ↓
-LangGraph Agent
-        ↓
-DeepSeek v4 (ChatOpenAI)
-        ↓
-FastAPI 后端
-        ↓
-Next.js / React 前端聊天界面
-```
+该项目由两条主链路组成：
+- **在线问答链路**：前端提问 -> FastAPI -> LangGraph Agent -> DeepSeek -> 返回答案
+- **离线构建链路**：SDK 解析 -> 知识构建 -> 依赖图 -> 向量索引
+
+在线回答时，Agent 会先做意图识别和查询重写，再进行知识库检索与依赖图展开，最后由模型生成带来源引用的回答。
 
 ## 技术栈
 
 | 模块 | 技术 |
 |------|------|
 | 后端框架 | Python 3.11 + FastAPI |
-| LLM | DeepSeek v4 (deepseek-chat) |
+| LLM | DeepSeek Chat（`deepseek-chat`，通过 `ChatOpenAI` 接入） |
 | Agent 框架 | LangGraph + LangChain |
-| 知识库检索 | Chroma + sentence-transformers (all-MiniLM-L6-v2) |
-| SDK 解析 | tree-sitter (TypeScript AST) |
+| 知识库检索 | Chroma + sentence-transformers（`all-MiniLM-L6-v2`） |
+| SDK 解析 | tree-sitter（TypeScript AST） |
 | 前端 | Next.js 16 + React 19 + Tailwind CSS 4 |
-| 代码展示 | Monaco Editor |
+| 代码展示 | Monaco Editor（前端依赖已安装） |
 | 评测 | RAGAS |
 
 ## 项目结构
@@ -156,7 +174,41 @@ python eval/run_eval.py
 
 你也可以直接用 `VectorStore.search()` 对 `docs/rag` 里的关键词做检索检查。
 
-### 4. 启动后端
+### 6. 离线知识构建流程
+
+项目在首次启动或 SDK 文档更新后，需要先执行知识构建流水线：
+
+```mermaid
+flowchart TD
+  A[读取 TypeScript SDK\nnode_modules/@manycore/idp-sdk/index.d.ts] --> B[AST 解析\nSDKParser.parse()]
+  B --> C[生成知识单元\nKnowledgeBuilder.build()]
+  B --> D[构建依赖图\nGraphBuilder.build()]
+  C --> E[写入 data/knowledge\nMarkdown / JSON / _index.json]
+  D --> F[写入 data/graph/dependency_graph.json]
+  E --> G[构建向量索引\nVectorStore.build_index()]
+  G --> H[写入 data/chroma]
+```
+
+### 7. 在线问答流程
+
+用户在前端输入问题后，系统会经过如下步骤返回答案：
+
+```mermaid
+flowchart TD
+  A[用户输入问题\nNext.js 前端] --> B[调用 POST /api/chat\nchatService.ts]
+  B --> C[FastAPI 校验请求\napp/main.py]
+  C --> D[AgentRunner 追加会话历史]
+  D --> E[IntentRouter 识别意图]
+  E --> F[QueryRewrite 重写问题]
+  F --> G[Retriever 检索知识库]
+  G --> H[GraphExpander 展开相关依赖]
+  H --> I[AnswerGenerator 生成回答]
+  I --> J[DeepSeek Chat 生成最终答案]
+  J --> K[返回 ChatResponse 到前端]
+  K --> L[前端渲染消息与会话状态]
+```
+
+### 8. 启动后端
 
 在项目根目录启动 FastAPI 服务：
 
@@ -169,7 +221,7 @@ uvicorn app.main:app --reload --port 8000
 - 健康检查：`http://localhost:8000/api/health`
 - 对话接口：`http://localhost:8000/api/chat`
 
-### 5. 启动前端
+### 9. 启动前端
 
 另开一个终端，进入前端目录并启动 Next.js：
 
@@ -183,7 +235,7 @@ cd frontend && npm run dev
 
 前端默认通过 `NEXT_PUBLIC_API_URL` 访问后端；本地开发未单独配置时，默认指向 `http://localhost:8000`。
 
-### 6. 本地运行校验
+### 10. 本地运行校验
 
 按下面顺序确认服务是否正常：
 
@@ -192,7 +244,7 @@ cd frontend && npm run dev
 3. 发送一条问题，例如：`IDP.Miniapp.exit 怎么使用？`
 4. 确认页面能返回回答，并且不会再出现网络连接失败
 
-### 7. 常见问题
+### 11. 常见问题
 
 - **启动日志提示未加载 DeepSeek key**：检查项目根目录 `.env` 是否存在，以及 `DEEPSEEK_API_KEY` 是否写在当前运行环境可读取的位置。
 - **端口 8000 被占用**：停止占用进程，或修改后端启动端口。
