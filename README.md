@@ -25,30 +25,30 @@
 
 ```mermaid
 flowchart LR
-  U[用户 / 浏览器] --> FE[Next.js 16 + React 19 前端]
+  U[用户] --> FE[前端]
   FE --> CS[chatService.ts]
-  CS --> API[FastAPI 后端\napp/main.py]
-  API --> AR[AgentRunner.chat()]
-  AR --> LG[LangGraph Workflow\nagent/assistant.py]
+  CS --> API[FastAPI]
+  API --> AR[AgentRunner]
+  AR --> LG[LangGraph]
   LG --> IR[IntentRouter]
   IR --> QR[QueryRewrite]
   QR --> RT[Retriever]
-  RT --> VS[VectorStore.search()\nChroma + sentence-transformers]
+  RT --> VS[VectorStore]
   RT --> GE[GraphExpander]
-  GE --> KG[data/knowledge/*.md]
-  GE --> GD[data/graph/dependency_graph.json]
+  GE --> KB[知识库]
+  GE --> GD[依赖图]
   GE --> AG[AnswerGenerator]
-  AG --> LLM[DeepSeek Chat\nChatOpenAI]
+  AG --> LLM[DeepSeek]
   AG --> API
   API --> FE
 
   subgraph OFFLINE[离线知识构建链路]
-    SRC[TypeScript SDK\nindex.d.ts] --> PARSER[SDKParser]
-    PARSER --> KB[KnowledgeBuilder]
-    PARSER --> GB[GraphBuilder]
-    KB --> KNOW[data/knowledge/*.md + .json + _index.json]
-    GB --> GRAPH[data/graph/dependency_graph.json]
-    KNOW --> VSB[VectorStore.build_index()]
+    SRC[TypeScript SDK] --> PARSER[SDKParser]
+    PARSER --> KBU[KnowledgeBuilder]
+    PARSER --> GBU[GraphBuilder]
+    KBU --> KNOW[data/knowledge]
+    GBU --> GRAPH[data/graph]
+    KNOW --> VSB[VectorStore]
     VSB --> CHROMA[data/chroma]
   end
 ```
@@ -56,8 +56,8 @@ flowchart LR
 ## 技术架构
 
 该项目由两条主链路组成：
-- **在线问答链路**：前端提问 -> FastAPI -> LangGraph Agent -> DeepSeek -> 返回答案
-- **离线构建链路**：SDK 解析 -> 知识构建 -> 依赖图 -> 向量索引
+- **在线问答链路**：用户在前端提问，经由后端 API 进入 LangGraph Agent，最终返回答案
+- **离线构建链路**：SDK 解析后生成知识库、依赖图和向量索引
 
 在线回答时，Agent 会先做意图识别和查询重写，再进行知识库检索与依赖图展开，最后由模型生成带来源引用的回答。
 
@@ -195,17 +195,17 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  A[用户输入问题\nNext.js 前端] --> B[调用 POST /api/chat\nchatService.ts]
-  B --> C[FastAPI 校验请求\napp/main.py]
-  C --> D[AgentRunner 追加会话历史]
-  D --> E[IntentRouter 识别意图]
-  E --> F[QueryRewrite 重写问题]
-  F --> G[Retriever 检索知识库]
-  G --> H[GraphExpander 展开相关依赖]
-  H --> I[AnswerGenerator 生成回答]
-  I --> J[DeepSeek Chat 生成最终答案]
-  J --> K[返回 ChatResponse 到前端]
-  K --> L[前端渲染消息与会话状态]
+  A[用户] --> B[前端]
+  B --> C[API 请求]
+  C --> D[会话管理]
+  D --> E[意图识别]
+  E --> F[查询重写]
+  F --> G[知识库检索]
+  G --> H[依赖图展开]
+  H --> I[答案生成]
+  I --> J[DeepSeek]
+  J --> K[返回前端]
+  K --> L[渲染消息]
 ```
 
 ### 8. 启动后端
