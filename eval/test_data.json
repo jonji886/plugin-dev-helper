@@ -4,139 +4,208 @@
     "category": "api_usage",
     "question": "IDP.Miniapp.exit 函数的作用是什么？",
     "expected_answer": "退出小程序",
-    "reference_docs": ["IDP.Miniapp.exit"]
+    "reference_docs": [
+      "IDP.Miniapp.exit"
+    ]
   },
   {
     "id": "q002",
     "category": "api_usage",
     "question": "如何获取当前应用模式？",
     "expected_answer": "调用 IDP.Platform.getAppMode() 获取当前应用模式",
-    "reference_docs": ["IDP.Platform.getAppMode"]
+    "reference_docs": [
+      "IDP.Platform.getAppMode"
+    ]
   },
   {
     "id": "q003",
     "category": "api_usage",
     "question": "uploadDataAsync 函数的作用是什么？",
     "expected_answer": "临时存储数据，24小时后自动清理，返回 uniqueId 作为获取数据的媒介",
-    "reference_docs": ["IDP.Miniapp.uploadDataAsync"]
+    "reference_docs": [
+      "IDP.Miniapp.uploadDataAsync"
+    ]
   },
   {
     "id": "q004",
     "category": "api_usage",
     "question": "getUploadedDataAsync 如何获取上传的数据？",
     "expected_answer": "需要将 uploadDataAsync 返回的 uniqueId 作为 URL 参数 miniappUploadId 传入",
-    "reference_docs": ["IDP.Miniapp.getUploadedDataAsync"]
+    "reference_docs": [
+      "IDP.Miniapp.getUploadedDataAsync"
+    ]
   },
   {
     "id": "q005",
     "category": "param_description",
     "question": "MiniappUploadDataOption 接口有哪些参数？",
     "expected_answer": "包含 data 等参数，具体参看接口定义",
-    "reference_docs": ["MiniappUploadDataOption"]
+    "reference_docs": [
+      "MiniappUploadDataOption"
+    ]
   },
   {
     "id": "q006",
     "category": "param_description",
     "question": "MiniappUploadDataResult 包含哪些字段？",
     "expected_answer": "包含 uniqueId 字段",
-    "reference_docs": ["MiniappUploadDataResult"]
+    "reference_docs": [
+      "MiniappUploadDataResult"
+    ]
   },
   {
     "id": "q007",
     "category": "code_example",
     "question": "如何用 TypeScript 调用 IDP.Miniapp.exit？",
     "expected_answer": "直接调用 IDP.Miniapp.exit() 或使用别名 IDP.exit()",
-    "reference_docs": ["IDP.Miniapp.exit"]
+    "reference_docs": [
+      "IDP.Miniapp.exit"
+    ]
   },
   {
     "id": "q008",
     "category": "code_example",
     "question": "如何上传并获取临时存储数据？",
     "expected_answer": "先调用 IDP.Miniapp.uploadDataAsync 上传，再将返回的 uniqueId 作为 miniappUploadId 参数",
-    "reference_docs": ["IDP.Miniapp.uploadDataAsync", "IDP.Miniapp.getUploadedDataAsync"]
+    "reference_docs": [
+      "IDP.Miniapp.uploadDataAsync",
+      "IDP.Miniapp.getUploadedDataAsync"
+    ]
   },
   {
     "id": "q009",
     "category": "sdk_feature",
     "question": "IDP 命名空间下包含哪些子模块？",
     "expected_answer": "包含 Miniapp、Platform 等子模块",
-    "reference_docs": ["IDP"]
+    "reference_docs": [
+      "IDP"
+    ]
   },
   {
     "id": "q010",
     "category": "sdk_feature",
     "question": "BomDetectionType 枚举有哪些值？",
     "expected_answer": "包含墙面检测、门窗检测等类型值",
-    "reference_docs": ["BomDetectionType"]
+    "reference_docs": [
+      "BomDetectionType"
+    ]
   },
   {
     "id": "q011",
     "category": "api_usage",
     "question": "BomMaterialBase 接口有哪些属性？",
     "expected_answer": "包含材质的编号、名称、品牌、规格等属性",
-    "reference_docs": ["BomMaterialBase"]
+    "reference_docs": [
+      "BomMaterialBase"
+    ]
   },
   {
     "id": "q012",
     "category": "sdk_feature",
     "question": "AugmentedRequired 和 AugmentedOptional 有什么区别？",
     "expected_answer": "一个是必填增强类型，一个是可选增强类型",
-    "reference_docs": ["AugmentedRequired", "AugmentedOptional"]
+    "reference_docs": [
+      "AugmentedRequired",
+      "AugmentedOptional"
+    ]
   },
   {
     "id": "q013",
     "category": "api_usage",
     "question": "BomDetectionRule 接口是做什么的？",
     "expected_answer": "定义检测规则的接口，包含检测类型、规则级别等",
-    "reference_docs": ["BomDetectionRule"]
+    "reference_docs": [
+      "BomDetectionRule"
+    ]
   },
   {
     "id": "q014",
     "category": "code_example",
     "question": "如何判断 BomDetectionRuleAlertLevel 的值？",
     "expected_answer": "通过枚举值比较，如 info、warning、error 等级别",
-    "reference_docs": ["BomDetectionRuleAlertLevel"]
+    "reference_docs": [
+      "BomDetectionRuleAlertLevel"
+    ]
   },
   {
     "id": "q015",
     "category": "param_description",
     "question": "BomProductBase 接口的必填字段有哪些？",
     "expected_answer": "包含产品编号、产品名称等必填字段",
-    "reference_docs": ["BomProductBase"]
+    "reference_docs": [
+      "BomProductBase"
+    ]
   },
   {
     "id": "q016",
     "category": "api_usage",
     "question": "IDP 平台上如何查看 View 的挂载点？",
     "expected_answer": "通过 View_2 接口的 mountPoints 属性获取挂载点信息",
-    "reference_docs": ["View_2"]
+    "reference_docs": [
+      "View_2"
+    ]
   },
   {
     "id": "q017",
     "category": "sdk_feature",
     "question": "SDK 中 BomMaterialType 枚举包含哪些材质类型？",
     "expected_answer": "包含多种装修建材类型枚举",
-    "reference_docs": ["BomMaterialType"]
+    "reference_docs": [
+      "BomMaterialType"
+    ]
   },
   {
     "id": "q018",
     "category": "param_description",
     "question": "BomDetectionProblem 接口包含哪些字段？",
     "expected_answer": "包含检测问题描述、位置、级别等字段",
-    "reference_docs": ["BomDetectionProblem"]
+    "reference_docs": [
+      "BomDetectionProblem"
+    ]
   },
   {
     "id": "q019",
     "category": "code_example",
     "question": "如何使用 BomDetectionOption 配置检测？",
     "expected_answer": "通过 BomDetectionOption 接口配置检测参数，包括检测范围和规则",
-    "reference_docs": ["BomDetectionOption"]
+    "reference_docs": [
+      "BomDetectionOption"
+    ]
   },
   {
     "id": "q020",
     "category": "api_usage",
     "question": "view 常量在 IDP.Miniapp 中的作用是什么？",
     "expected_answer": "view 是 IDP.Miniapp 命名空间下的 View_2 类型的常量",
-    "reference_docs": ["IDP.Miniapp.view"]
+    "reference_docs": [
+      "IDP.Miniapp.view"
+    ]
+  },
+  {
+    "id": "rag001",
+    "category": "rag_doc",
+    "question": "工具插件说明主要介绍了什么？",
+    "expected_answer": "工具插件整体方案，UI 与 VM 分工，开放能力和生命周期",
+    "reference_docs": [
+      "rag.工具插件说明"
+    ]
+  },
+  {
+    "id": "rag002",
+    "category": "rag_doc",
+    "question": "工具插件代码结构里 manifest.json、UI 和 VM 分别负责什么？",
+    "expected_answer": "manifest.json 配置插件，UI 负责界面，VM 负责调用工具插件 API",
+    "reference_docs": [
+      "rag.工具插件代码结构"
+    ]
+  },
+  {
+    "id": "rag003",
+    "category": "rag_doc",
+    "question": "方案导出JSON里 getDesignFullJsonUrlAsync 的返回值和使用规范是什么？",
+    "expected_answer": "返回文件 URL，需要在 UI 层用 fetch 读取，不建议高并发调用",
+    "reference_docs": [
+      "rag.方案导出JSON"
+    ]
   }
 ]

@@ -136,6 +136,26 @@ python scripts/run_pipeline.py
 
 这一步会解析 SDK、生成知识库文档、构建依赖图，并更新向量索引。
 
+### 4. 同步 RAG 文档
+
+如果你更新了 `docs/rag/` 下的酷家乐插件文档，先同步到知识库，再重建索引：
+
+```bash
+python scripts/sync_rag_docs.py
+```
+
+该脚本会把 `docs/rag/**/*.md` 转成 `data/knowledge/` 下可入库的 Markdown / JSON，并更新 `_index.json`，随后按需重建 `data/chroma/`。
+
+### 5. 校验 RAG 文档召回
+
+项目提供了专项评测样本，包含 `rag_doc` 类问题，用于验证新增的 `docs/rag` 文档是否能被检索到：
+
+```bash
+python eval/run_eval.py
+```
+
+你也可以直接用 `VectorStore.search()` 对 `docs/rag` 里的关键词做检索检查。
+
 ### 4. 启动后端
 
 在项目根目录启动 FastAPI 服务：
