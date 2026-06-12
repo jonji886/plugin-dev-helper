@@ -180,13 +180,13 @@ python eval/run_eval.py
 
 ```mermaid
 flowchart TD
-  A[读取 TypeScript SDK\nnode_modules/@manycore/idp-sdk/index.d.ts] --> B[AST 解析\nSDKParser.parse()]
-  B --> C[生成知识单元\nKnowledgeBuilder.build()]
-  B --> D[构建依赖图\nGraphBuilder.build()]
-  C --> E[写入 data/knowledge\nMarkdown / JSON / _index.json]
-  D --> F[写入 data/graph/dependency_graph.json]
-  E --> G[构建向量索引\nVectorStore.build_index()]
-  G --> H[写入 data/chroma]
+  A[SDK] --> B[解析]
+  B --> C[知识单元]
+  B --> D[依赖图]
+  C --> E[写入知识库]
+  D --> F[写入图数据]
+  E --> G[向量索引]
+  G --> H[写入 Chroma]
 ```
 
 ### 7. 在线问答流程
