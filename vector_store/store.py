@@ -105,6 +105,7 @@ class VectorStore:
                 "source": entry.get("source", ""),
                 "sdkVersion": entry.get("sdkVersion", ""),
                 "aliases": ",".join(aliases[:5]),
+                "is_overview": entry.get("is_overview", False),
             })
             ids.append(entry["id"])
 
@@ -170,6 +171,34 @@ class VectorStore:
             })
 
         return formatted
+
+    def search_with_boost(self, query: str, top_k: int = 5, boost_overview: bool = False) -> list[dict]:
+        """
+        搜索最相关的知识单元，支持对 overview 文档加权。
+
+        Args:
+            query: 查询文本
+            top_k: 返回结果数量
+            boost_overview: 是否对总览型文档加权
+
+        Returns:
+            排序后的检索结果列表
+        """
+        # 多取候选用于重排（扩大到 50 个以确保 overview 文档有机会进入候选）
+        candidate_count = min(max(top_k * 10, 50), self.collection.count())
+        results = self.search(query, top_k=max(candidate_count, top_k))
+
+        if not boost_overview or not results:
+            return results[:top_k]
+
+        # 对 overview 文档加权（距离越小越相似，乘以 0.8 提升排名）
+        for r in results:
+            if r.get("metadata", {}).get("is_overview"):
+                r["distance"] = r.get("distance", 1.0) * 0.8
+
+        # 按距离重新排序
+        results.sort(key=lambda x: x.get("distance", 1.0))
+        return results[:top_k]
 
     def count(self) -> int:
         """返回文档数量"""

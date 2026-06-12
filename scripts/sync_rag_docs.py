@@ -45,6 +45,7 @@ class RagDocEntry:
     endLine: int
     sourcePath: str
     contentHash: str
+    is_overview: bool = False  # 是否为总览型文档
 
 
 def slugify_path(path: Path) -> str:
@@ -130,6 +131,10 @@ def build_entry(doc_path: Path) -> tuple[RagDocEntry, str]:
     content_hash = hash_text(md_content)
     safe_id = safe_filename(doc_id)
 
+    # 判断是否为总览型文档（通过文件名关键词识别）
+    overview_keywords = ["说明", "介绍", "概述", "概览", "overview", "guide", "intro"]
+    is_overview = any(kw in doc_path.stem.lower() for kw in overview_keywords)
+
     entry = RagDocEntry(
         id=doc_id,
         name=title,
@@ -146,6 +151,7 @@ def build_entry(doc_path: Path) -> tuple[RagDocEntry, str]:
         endLine=max(1, content.count("\n") + 1),
         sourcePath=str(rel_path).replace("\\", "/"),
         contentHash=content_hash,
+        is_overview=is_overview,
     )
     return entry, md_content
 
@@ -201,6 +207,7 @@ def sync_docs(rebuild_index: bool = True) -> bool:
             "endLine": entry.endLine,
             "sourcePath": entry.sourcePath,
             "contentHash": entry.contentHash,
+            "is_overview": entry.is_overview,
         })
 
     removed_sources = set(previous_by_source) - seen_sources
