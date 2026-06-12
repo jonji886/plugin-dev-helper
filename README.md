@@ -2,6 +2,12 @@
 
 > 基于 LangGraph + DeepSeek 的 SDK 智能问答助手
 
+## 从零到可用
+
+1. 配置项目根目录 `.env`，写入 `DEEPSEEK_API_KEY=...`
+2. 构建知识库：`python scripts/run_pipeline.py`
+3. 启动后端和前端：先执行 `uvicorn app.main:app --reload --port 8000`，再执行 `cd frontend && npm run dev`
+
 ## 项目简介
 
 插件开发 AI Agent 是一个面向设计平台开放平台插件开发者的智能问答助手。它能自动回答关于 SDK、API 和插件开发的问题，支持多轮对话、代码示例生成、参数说明和来源引用，帮助开发者减少等待人工回复的时间，降低技术支持成本。
@@ -98,49 +104,81 @@ Next.js / React 前端聊天界面
 
 ### 1. 安装依赖
 
-```bash
-# 后端依赖
-pip install -r requirements.txt
+先安装后端与项目根目录依赖，再安装前端依赖：
 
-# 如需使用国内镜像源加速，例如清华源：
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
+```bash
+# 项目根目录依赖
+npm install
 
 # 前端依赖
 cd frontend && npm install
-
-# SDK 依赖
-npm install
 ```
+
+> 说明：后端依赖由当前 Python 环境管理，建议使用项目已有的虚拟环境运行后端；如果你是在新环境中首次启动，请先确保 `fastapi`、`uvicorn`、`langchain`、`langgraph` 等依赖已安装。
 
 ### 2. 配置环境变量
 
-创建 `.env` 文件：
+在项目根目录创建 `.env` 文件：
 
 ```env
 DEEPSEEK_API_KEY=your_api_key_here
 ```
 
-### 3. 运行知识库流水线
+后端启动时会自动读取项目根目录的 `.env`，并在日志中打印 DeepSeek key 是否已加载。
 
-构建 SDK 知识库（解析 SDK → 构建知识 → 生成依赖图 → 向量索引）：
+### 3. 构建知识库
+
+首次启动或更新 SDK 文档后，先构建知识库：
 
 ```bash
 python scripts/run_pipeline.py
 ```
 
+这一步会解析 SDK、生成知识库文档、构建依赖图，并更新向量索引。
+
 ### 4. 启动后端
+
+在项目根目录启动 FastAPI 服务：
 
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
+启动成功后可以访问：
+
+- 健康检查：`http://localhost:8000/api/health`
+- 对话接口：`http://localhost:8000/api/chat`
+
 ### 5. 启动前端
+
+另开一个终端，进入前端目录并启动 Next.js：
 
 ```bash
 cd frontend && npm run dev
 ```
 
-访问 `http://localhost:3000` 即可开始对话。
+启动后访问：
+
+- `http://localhost:3000`
+
+前端默认通过 `NEXT_PUBLIC_API_URL` 访问后端；本地开发未单独配置时，默认指向 `http://localhost:8000`。
+
+### 6. 本地运行校验
+
+按下面顺序确认服务是否正常：
+
+1. 后端健康检查返回 `200`：`GET /api/health`
+2. 打开前端首页，能看到“插件开发 AI 助手”页面
+3. 发送一条问题，例如：`IDP.Miniapp.exit 怎么使用？`
+4. 确认页面能返回回答，并且不会再出现网络连接失败
+
+### 7. 常见问题
+
+- **启动日志提示未加载 DeepSeek key**：检查项目根目录 `.env` 是否存在，以及 `DEEPSEEK_API_KEY` 是否写在当前运行环境可读取的位置。
+- **端口 8000 被占用**：停止占用进程，或修改后端启动端口。
+- **端口 3000 被占用**：停止占用进程，或让 Next.js 换一个端口启动。
+- **回答质量很差或提示没有知识**：先确认是否已执行 `python scripts/run_pipeline.py` 重新构建知识库。
+- **前端显示接口错误**：先确认后端 `http://localhost:8000/api/health` 是否正常，再检查前端是否仍在访问默认后端地址。
 
 ## LangGraph Agent 节点
 
@@ -159,9 +197,11 @@ cd frontend && npm run dev
 | POST | `/api/chat` | 对话接口 |
 | GET | `/api/chat/history` | 获取会话历史 |
 
-## 评测
+## 进阶使用
 
-项目包含基于 RAGAS 的自动评测框架：
+### 评测
+
+项目包含基于 RAGAS 的自动评测框架，适合在服务已可用后做效果验证和回归测试：
 
 ```bash
 python eval/run_eval.py

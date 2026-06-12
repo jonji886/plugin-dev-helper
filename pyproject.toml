@@ -12,6 +12,7 @@ dependencies = [
     "langgraph>=0.0.20",
     "langchain-community>=0.0.10",
     "pydantic>=2.5.0",
+    "python-dotenv>=1.0.0",
     "tree-sitter>=0.20.4",
     "tree-sitter-typescript>=0.20.3",
     "networkx>=3.2.1",
