@@ -167,8 +167,6 @@ def sync_docs(rebuild_index: bool = True) -> bool:
         if item.get("namespace") == "docs.rag"
     }
 
-    previous_ids = {item.get("id") for item in previous_index if item.get("namespace") == "docs.rag"}
-
     new_index: list[dict] = []
     changed = False
     seen_ids: set[str] = set()
@@ -182,9 +180,11 @@ def sync_docs(rebuild_index: bool = True) -> bool:
         seen_sources.add(entry.sourcePath)
 
         prev = previous_by_source.get(entry.sourcePath)
-        if entry.id in previous_ids:
-            changed = True
-        elif not prev or prev.get("contentHash") != entry.contentHash:
+        if (
+            not prev
+            or prev.get("id") != entry.id
+            or prev.get("contentHash") != entry.contentHash
+        ):
             changed = True
 
         md_path = KNOWLEDGE_DIR / entry.mdFile

@@ -5,8 +5,8 @@
 ## 从零到可用
 
 1. 配置项目根目录 `.env`，写入 `DEEPSEEK_API_KEY=...`
-2. 构建知识库：`python scripts/run_pipeline.py`
-3. 启动后端和前端：先执行 `uvicorn app.main:app --reload --port 8000`，再执行 `cd frontend && npm run dev`
+2. 构建知识库：`.venv/bin/python scripts/run_pipeline.py`
+3. 启动后端和前端：先执行 `.venv/bin/uvicorn app.main:app --reload --port 8000`，再执行 `cd frontend && npm run dev`
 
 ## 项目简介
 
@@ -40,6 +40,7 @@ flowchart LR
   GE --> AG[AnswerGenerator]
   AG --> LLM[DeepSeek]
   AG --> API
+  API --> CIT[结构化来源引用]
   API --> FE
 
   subgraph OFFLINE[离线知识构建链路]
@@ -77,19 +78,25 @@ flowchart LR
 | `aliases` | 别名列表，用于关键词匹配 |
 | `is_overview` | 是否为总览型文档（优先召回） |
 | `source` | 来源文件 |
+| `contentHash` | 知识单元内容哈希，用于追踪构建产物版本 |
 
 ### 检索流程
 
 ```mermaid
 flowchart TD
-    Q[用户问题] --> IQ{总览型问题?}
-    IQ -->|是| BO[加权检索]
-    IQ -->|否| NO[普通检索]
-    BO --> C1[候选集 50 个]
-    C1 --> W1[overview 文档距离 × 0.8]
-    W1 --> R1[重排返回 Top-K]
-    NO --> C2[直接返回 Top-K]
+    Q[用户问题] --> SEM[语义检索]
+    Q --> LEX[符号、别名和描述词法检索]
+    SEM --> IQ{总览型问题?}
+    IQ -->|是| BO[overview 文档距离 × 0.8]
+    IQ -->|否| RRF[结果合并]
+    BO --> RRF
+    LEX --> RRF
+    RRF --> TOPK[重排返回 Top-K]
 ```
+
+### 混合检索
+
+普通问题同时使用语义检索和符号词法检索。后者会匹配 API 路径、别名和 JSDoc 简短描述，因此“保存设计方案接口是哪个”也能召回 `IDP.Design.save`，而不要求开发者准确输入完整 SDK 路径。
 
 ### 总览文档优先召回
 
@@ -99,7 +106,7 @@ flowchart TD
 
 1. **文档标记**：文件名包含 `说明`、`介绍`、`概述`、`概览`、`overview`、`guide`、`intro` 的文档自动标记为 `is_overview: true`
 2. **问题识别**：`is_overview_query()` 识别总览型问题（关键词：`可以做什么`、`有什么用`、`介绍一下`、`能力介绍` 等）
-3. **加权检索**：扩大候选集到 50 个，对 overview 文档的距离值乘以 0.8，重排后返回 Top-K
+3. **加权检索**：扩大语义候选集到 50 个，对 overview 文档的距离值乘以 0.8，再与词法结果合并重排
 
 **效果示例**：
 
@@ -119,8 +126,8 @@ flowchart TD
 | 知识库检索 | Chroma + sentence-transformers（`all-MiniLM-L6-v2`） |
 | SDK 解析 | tree-sitter（TypeScript AST） |
 | 前端 | Next.js 16 + React 19 + Tailwind CSS 4 |
-| 代码展示 | Monaco Editor（前端依赖已安装） |
-| 评测 | RAGAS |
+| 回答展示 | GitHub 风格 Markdown（标题、列表、表格、引用、链接、代码）+ 一键复制 |
+| 评测 | 检索召回、引用有效率、答案正确性门禁 |
 
 ## 项目结构
 
@@ -170,17 +177,20 @@ flowchart TD
 
 ### 1. 安装依赖
 
-先安装后端与项目根目录依赖，再安装前端依赖：
+先使用 Python 3.11 创建虚拟环境并安装后端依赖，再安装前端依赖：
 
 ```bash
-# 项目根目录依赖
+python3.11 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+
+# 项目根目录 SDK 依赖
 npm install
 
 # 前端依赖
 cd frontend && npm install
 ```
 
-> 说明：后端依赖由当前 Python 环境管理，建议使用项目已有的虚拟环境运行后端；如果你是在新环境中首次启动，请先确保 `fastapi`、`uvicorn`、`langchain`、`langgraph` 等依赖已安装。
+> 后端运行与测试命令均使用 `.venv/bin/python`，避免系统 `python` 指向错误版本。
 
 ### 2. 配置环境变量
 
@@ -197,7 +207,7 @@ DEEPSEEK_API_KEY=your_api_key_here
 首次启动或更新 SDK 文档后，先构建知识库：
 
 ```bash
-python scripts/run_pipeline.py
+.venv/bin/python scripts/run_pipeline.py
 ```
 
 这一步会解析 SDK、生成知识库文档、构建依赖图，并更新向量索引。
@@ -207,7 +217,7 @@ python scripts/run_pipeline.py
 如果你更新了 `docs/rag/` 下的酷家乐插件文档，先同步到知识库，再重建索引：
 
 ```bash
-python scripts/sync_rag_docs.py
+.venv/bin/python scripts/sync_rag_docs.py
 ```
 
 该脚本会把 `docs/rag/**/*.md` 转成 `data/knowledge/` 下可入库的 Markdown / JSON，并更新 `_index.json`，随后按需重建 `data/chroma/`。
@@ -217,7 +227,7 @@ python scripts/sync_rag_docs.py
 项目提供了专项评测样本，包含 `rag_doc` 类问题，用于验证新增的 `docs/rag` 文档是否能被检索到：
 
 ```bash
-python eval/run_eval.py
+.venv/bin/python eval/run_eval.py
 ```
 
 你也可以直接用 `VectorStore.search()` 对 `docs/rag` 里的关键词做检索检查。
@@ -261,7 +271,7 @@ flowchart TD
 在项目根目录启动 FastAPI 服务：
 
 ```bash
-uvicorn app.main:app --reload --port 8000
+.venv/bin/uvicorn app.main:app --reload --port 8000
 ```
 
 启动成功后可以访问：
@@ -297,7 +307,7 @@ cd frontend && npm run dev
 - **启动日志提示未加载 DeepSeek key**：检查项目根目录 `.env` 是否存在，以及 `DEEPSEEK_API_KEY` 是否写在当前运行环境可读取的位置。
 - **端口 8000 被占用**：停止占用进程，或修改后端启动端口。
 - **端口 3000 被占用**：停止占用进程，或让 Next.js 换一个端口启动。
-- **回答质量很差或提示没有知识**：先确认是否已执行 `python scripts/run_pipeline.py` 重新构建知识库。
+- **回答质量很差或提示没有知识**：先确认是否已执行 `.venv/bin/python scripts/run_pipeline.py` 重新构建知识库。
 - **前端显示接口错误**：先确认后端 `http://localhost:8000/api/health` 是否正常，再检查前端是否仍在访问默认后端地址。
 
 ## LangGraph Agent 节点
@@ -316,21 +326,54 @@ cd frontend && npm run dev
 | GET | `/api/health` | 健康检查 |
 | POST | `/api/chat` | 对话接口 |
 | GET | `/api/chat/history` | 获取会话历史 |
+| DELETE | `/api/chat/history` | 按会话或全部清除历史 |
+
+`POST /api/chat` 的响应除 `answer` 外，还包含后端根据实际检索结果生成的来源引用：
+
+```json
+{
+  "answer": "调用 IDP.Miniapp.exit() 可退出小程序。",
+  "citations": [
+    {
+      "id": "IDP.Miniapp.exit",
+      "source": "index.d.ts",
+      "sdk_version": "1.83.0",
+      "start_line": 123,
+      "end_line": 126
+    }
+  ]
+}
+```
 
 ## 进阶使用
 
 ### 评测
 
-项目包含基于 RAGAS 的自动评测框架，适合在服务已可用后做效果验证和回归测试：
+项目包含自动化检索与回答质量评测，适合在服务已可用后做效果验证和回归测试：
 
 ```bash
-python eval/run_eval.py
+.venv/bin/python eval/run_eval.py
 ```
 
 评测指标：
 - **Recall@1/3/5**：检索召回率
 - **Answer Correctness**：答案正确性
-- **Faithfulness**：答案忠实度（基于引用检测）
+- **Citation Validity**：来源是否来自实际检索到的知识库条目
+
+### 测试
+
+```bash
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+测试覆盖 SDK 分块解析行号、RAG 文档增量同步、结构化来源引用，以及聊天 API 会话清理。
+
+### P0 运行边界
+
+- 每次执行 `scripts/run_pipeline.py` 都会统一构建 SDK 与 `docs/rag/` 文档，避免其中一类知识遗漏到向量索引。
+- `/api/chat` 会返回结构化 `citations`（来源、SDK 版本和行号）；前端会在回答下方展示该信息。
+- 会话当前仍保存在进程内存中，服务重启后会丢失，且不适合多实例部署。这是后续持久化会话阶段的范围。
+- 默认只允许 `http://localhost:3000` 跨域访问；部署时通过 `FRONTEND_ORIGINS` 明确配置前端域名。
 
 ## 更新日志
 

@@ -27,7 +27,7 @@
 * 自动回答 API / SDK / 插件开发问题
 * 支持多轮对话
 * 代码示例 + 参数说明
-* 来源引用，保证可信
+* 结构化来源引用，保证可信且可验证
 * 支持持续优化，降低人工成本
 
 ---
@@ -75,7 +75,7 @@ Next.js / React 前端聊天界面
 * Embedding：`sentence-transformers/all-MiniLM-L6-v2`（免费）
 * Vector Store：Chroma
 * 前端：Next.js + React + Tailwind CSS
-* Eval：Ragas
+* Eval：项目内置检索与引用质量评测
 
 ---
 
@@ -180,7 +180,7 @@ IDP.DB.Types.ElementId
 2. Query Rewrite：补全上下文
 3. Retrieve：知识库检索 TopK
 4. Graph Expansion：依赖链展开
-5. Answer Generator：生成答案 + 代码示例 + 来源
+5. Answer Generator：生成答案 + 代码示例；后端基于检索结果附加结构化来源
 6. Memory：会话历史管理
 
 ---
@@ -194,7 +194,7 @@ IDP.DB.Types.ElementId
 规则：
 1. 优先使用知识库回答
 2. 不允许编造不存在的 API
-3. 必须返回来源文件和 SDK 版本
+3. 必须返回可验证的来源文件、SDK 版本和源行号
 4. 不确定时明确说明
 ```
 
@@ -246,7 +246,7 @@ IDP.Miniapp.exit()
 ### 12.2 答案正确率
 
 * Answer Correctness ≥ 80%
-* Faithfulness ≥ 90%
+* Citation Validity ≥ 90%（每条引用均可在知识库索引中验证）
 
 示例：
 

@@ -132,6 +132,7 @@ class SDKParser:
 
     def _parse_chunk(self, code_bytes: bytes, line_offset: int):
         self._code = code_bytes
+        symbol_start_index = len(self.symbols)
         try:
             tree = self.parser.parse(code_bytes)
         except Exception as e:
@@ -139,7 +140,9 @@ class SDKParser:
             return
         self._parse_node_children(tree.root_node, namespace_path=[])
         # Fix line numbers
-        for sym in self.symbols:
+        # 仅修正当前分块新增符号。此前会对所有已解析符号重复累计偏移，
+        # 导致多分块 SDK 的 source line 信息失真。
+        for sym in self.symbols[symbol_start_index:]:
             sym.start_line += line_offset
             sym.end_line += line_offset
 
@@ -147,7 +150,7 @@ class SDKParser:
         for child in node.children:
             self._handle_declaration(child, namespace_path)
 
-    def _handle_declaration(self, node, namespace_path):
+    def _handle_declaration(self, node, namespace_path, inherited_comment: str = ""):
         t = node.type
 
         if t == 'ambient_declaration':
@@ -161,30 +164,31 @@ class SDKParser:
                 elif child.type in ('interface_declaration', 'type_alias_declaration',
                                     'enum_declaration', 'class_declaration',
                                     'function_declaration', 'function_signature'):
-                    self._extract_top_level(child, namespace_path)
+                    self._extract_top_level(child, namespace_path, inherited_comment)
 
         elif t == 'expression_statement':
             for child in node.children:
                 if child.type == 'internal_module':
                     self._parse_namespace_body(child, namespace_path)
                 elif child.type in ('function_declaration', 'function_signature'):
-                    self._extract_function(child, namespace_path)
+                    self._extract_function(child, namespace_path, inherited_comment)
                 elif child.type == 'lexical_declaration':
-                    self._extract_lexical(child, namespace_path)
+                    self._extract_lexical(child, namespace_path, inherited_comment)
                 elif child.type in ('interface_declaration', 'type_alias_declaration',
                                     'enum_declaration', 'class_declaration'):
-                    self._extract_top_level(child, namespace_path)
+                    self._extract_top_level(child, namespace_path, inherited_comment)
 
         elif t == 'lexical_declaration':
-            self._extract_lexical(node, namespace_path)
+            self._extract_lexical(node, namespace_path, inherited_comment)
         elif t in ('interface_declaration', 'type_alias_declaration',
                     'enum_declaration', 'class_declaration'):
-            self._extract_top_level(node, namespace_path)
+            self._extract_top_level(node, namespace_path, inherited_comment)
         elif t in ('function_declaration', 'function_signature'):
-            self._extract_function(node, namespace_path)
+            self._extract_function(node, namespace_path, inherited_comment)
         elif t == 'export_statement':
+            comment = self._comment_before(node) or inherited_comment
             for child in node.children:
-                self._handle_declaration(child, namespace_path)
+                self._handle_declaration(child, namespace_path, comment)
         elif t == 'ERROR':
             self._parse_node_children(node, namespace_path)
 
@@ -208,7 +212,7 @@ class SDKParser:
 
     # ---- 声明提取 ----
 
-    def _extract_top_level(self, node, namespace_path):
+    def _extract_top_level(self, node, namespace_path, inherited_comment: str = ""):
         name = ""
         for child in node.children:
             if child.type in ('type_identifier', 'identifier', 'name'):
@@ -217,7 +221,8 @@ class SDKParser:
         if not name:
             return
 
-        comment = self._comment_before(node)
+        comment = self._comment_before(node) or inherited_comment
+        jsdoc = parse_jsdoc(comment) if comment else None
         full_path = namespace_path + [name] if namespace_path else [name]
         symbol_id = ".".join(full_path)
 
@@ -236,10 +241,10 @@ class SDKParser:
             namespace_path=namespace_path, source=self.source_name,
             start_line=node.start_point[0] + 1,
             end_line=node.end_point[0] + 1,
-            description=comment,
+            description=jsdoc.text if jsdoc else "",
         )
-        if comment:
-            symbol.jsdoc = parse_jsdoc(comment)
+        if jsdoc:
+            symbol.jsdoc = jsdoc
 
         if node.type == 'interface_declaration':
             symbol.type_parameters = self._extract_type_params(node)
@@ -273,7 +278,7 @@ class SDKParser:
 
         self.symbols.append(symbol)
 
-    def _extract_function(self, node, namespace_path):
+    def _extract_function(self, node, namespace_path, inherited_comment: str = ""):
         name = ""
         params_node = None
         for child in node.children:
@@ -284,7 +289,8 @@ class SDKParser:
         if not name:
             return
 
-        comment = self._comment_before(node)
+        comment = self._comment_before(node) or inherited_comment
+        jsdoc = parse_jsdoc(comment) if comment else None
         full_path = namespace_path + [name]
         symbol_id = ".".join(full_path)
         params = self._extract_params(params_node) if params_node else []
@@ -299,17 +305,17 @@ class SDKParser:
         symbol = Symbol(
             id=symbol_id, name=name, symbol_type='function',
             namespace_path=namespace_path, source=self.source_name,
-            description=comment, parameters=params,
+            description=jsdoc.text if jsdoc else "", parameters=params,
             type_parameters=type_params,
             start_line=node.start_point[0] + 1,
             end_line=node.end_point[0] + 1,
             references=list(set(refs)),
         )
-        if comment:
-            symbol.jsdoc = parse_jsdoc(comment)
+        if jsdoc:
+            symbol.jsdoc = jsdoc
         self.symbols.append(symbol)
 
-    def _extract_lexical(self, node, namespace_path):
+    def _extract_lexical(self, node, namespace_path, inherited_comment: str = ""):
         for child in node.children:
             if child.type == 'variable_declarator':
                 name_node = None
@@ -322,16 +328,19 @@ class SDKParser:
                 if name_node is None:
                     continue
                 name = self._node_text(name_node)
-                comment = self._comment_before(child)
+                comment = self._comment_before(child) or inherited_comment
+                jsdoc = parse_jsdoc(comment) if comment else None
                 full_path = namespace_path + [name]
                 symbol_id = ".".join(full_path)
                 symbol = Symbol(
                     id=symbol_id, name=name, symbol_type='const',
                     namespace_path=namespace_path, source=self.source_name,
-                    description=comment,
+                    description=jsdoc.text if jsdoc else "",
                     start_line=node.start_point[0] + 1,
                     end_line=node.end_point[0] + 1,
                 )
+                if jsdoc:
+                    symbol.jsdoc = jsdoc
                 if type_node:
                     symbol.type_name = self._type_name(type_node)
                     symbol.references = extract_type_refs_from_text(symbol.type_name)
