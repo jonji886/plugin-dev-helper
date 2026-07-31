@@ -44,6 +44,44 @@ def is_overview_query(query: str) -> bool:
     return any(kw in query for kw in keywords)
 
 
+def build_citations(
+    retrieved_docs: list[dict],
+    knowledge_index_path: Path = Path("data/knowledge/_index.json"),
+    limit: int = 3,
+) -> list[dict]:
+    """根据实际检索结果生成可验证的结构化来源引用。"""
+    try:
+        index = json.loads(knowledge_index_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+    index_by_id = {entry.get("id"): entry for entry in index}
+    citations = []
+    seen_ids = set()
+
+    for doc in retrieved_docs:
+        doc_id = doc.get("id") or doc.get("metadata", {}).get("id")
+        if not doc_id or doc_id in seen_ids:
+            continue
+
+        entry = index_by_id.get(doc_id)
+        if not entry:
+            continue
+
+        seen_ids.add(doc_id)
+        citations.append({
+            "id": doc_id,
+            "source": entry.get("source", ""),
+            "sdk_version": entry.get("sdkVersion", ""),
+            "start_line": entry.get("startLine", 0),
+            "end_line": entry.get("endLine", 0),
+        })
+        if len(citations) >= limit:
+            break
+
+    return citations
+
+
 # ========== 状态定义 ==========
 
 class AgentState(TypedDict):
@@ -55,6 +93,7 @@ class AgentState(TypedDict):
     retrieved_docs: list[dict]  # 检索到的文档
     expanded_context: str  # 展开后的上下文
     answer: str  # 生成的回答
+    citations: list[dict]  # 基于检索结果生成的结构化来源
     session_id: str  # 会话 ID
 
 
@@ -169,10 +208,11 @@ class Retriever:
         boost_overview = is_overview_query(query)
 
         try:
-            if boost_overview:
-                results = self.vs.search_with_boost(query, top_k=self.top_k, boost_overview=True)
-            else:
-                results = self.vs.search(query, top_k=self.top_k)
+            results = self.vs.search_hybrid(
+                query,
+                top_k=self.top_k,
+                boost_overview=boost_overview,
+            )
         except Exception as e:
             print(f"[retrieve] Search failed: {e}")
             print(traceback.format_exc())
@@ -274,7 +314,7 @@ class AnswerGenerator:
 ## 要求
 1. 直接回答问题
 2. 如果涉及函数/API，提供代码示例
-3. 必须引用来源（文件名和SDK版本）
+3. 仅基于提供的知识库内容回答，不得虚构来源、版本或行号
 4. 列出参数说明
 5. 如果知识库信息不足，明确说明""")
             ])
@@ -356,6 +396,10 @@ class SessionManager:
         if session_id in self.sessions:
             del self.sessions[session_id]
 
+    def clear_all_sessions(self):
+        """清除全部内存会话。"""
+        self.sessions.clear()
+
     def get_all_sessions(self) -> list[dict]:
         return [
             {"id": sid, "message_count": len(msgs), "last_message": msgs[-1]["content"][:50] if msgs else ""}
@@ -394,6 +438,7 @@ class AgentRunner:
             "answer": "",
             "intent": "",
             "retrieved_docs": [],
+            "citations": [],
         }
 
         # 运行 Agent
@@ -406,6 +451,7 @@ class AgentRunner:
                 "retrieved_docs": [],
                 "expanded_context": "",
                 "answer": "",
+                "citations": [],
                 "session_id": session_id,
             })
             answer = result.get("answer", "")
@@ -422,4 +468,5 @@ class AgentRunner:
             "session_id": session_id,
             "intent": result.get("intent", ""),
             "retrieved_count": len(result.get("retrieved_docs", [])),
+            "citations": build_citations(result.get("retrieved_docs", [])),
         }

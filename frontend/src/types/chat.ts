@@ -2,6 +2,15 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp?: string;
+  citations?: Citation[];
+}
+
+export interface Citation {
+  id: string;
+  source: string;
+  sdk_version: string;
+  start_line: number;
+  end_line: number;
 }
 
 export interface ChatResponse {
@@ -9,6 +18,7 @@ export interface ChatResponse {
   session_id: string;
   intent: string;
   retrieved_count: number;
+  citations: Citation[];
 }
 
 export interface SessionInfo {

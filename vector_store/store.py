@@ -6,6 +6,7 @@
 
 import json
 import os
+import re
 import traceback
 from pathlib import Path
 from typing import Optional
@@ -43,6 +44,7 @@ class VectorStore:
 
         # Embedding 模型（延迟加载）
         self._embedding_model = None
+        self._knowledge_index = None
 
     @property
     def embedding_model(self):
@@ -199,6 +201,116 @@ class VectorStore:
         # 按距离重新排序
         results.sort(key=lambda x: x.get("distance", 1.0))
         return results[:top_k]
+
+    @staticmethod
+    def _compact_text(value: str) -> str:
+        return re.sub(r"\s+", "", value.lower())
+
+    @staticmethod
+    def _is_subsequence(needle: str, haystack: str) -> bool:
+        """判断短中文术语是否按顺序出现在用户问题中。"""
+        iterator = iter(haystack)
+        return all(char in iterator for char in needle)
+
+    @classmethod
+    def keyword_score(cls, query: str, entry: dict) -> float:
+        """为符号名、别名和短描述计算轻量级词法匹配分数。"""
+        compact_query = cls._compact_text(query)
+        aliases = entry.get("aliases", [])
+        searchable_parts = [
+            entry.get("id", ""),
+            entry.get("name", ""),
+            entry.get("namespace", ""),
+            *aliases,
+        ]
+        compact_searchable = cls._compact_text(" ".join(searchable_parts))
+        score = 0.0
+
+        for part in searchable_parts:
+            compact_part = cls._compact_text(str(part))
+            if len(compact_part) >= 2 and compact_part in compact_query:
+                score = max(score, 12.0 + min(len(compact_part), 20) / 10)
+
+        description = cls._compact_text(entry.get("description", ""))
+        if len(description) >= 2:
+            if description in compact_query or compact_query in description:
+                score = max(score, 16.0 + min(len(description), 20) / 10)
+            elif len(description) <= 12 and cls._is_subsequence(description, compact_query):
+                score = max(score, 14.0 + len(description) / 10)
+
+        # 对中文问题补充二元词匹配，避免“保存设计方案”与“保存方案”无法直接子串匹配。
+        chinese_query = "".join(re.findall(r"[\u4e00-\u9fff]", compact_query))
+        chinese_searchable = "".join(re.findall(r"[\u4e00-\u9fff]", compact_searchable + description))
+        bigrams = {chinese_query[i:i + 2] for i in range(len(chinese_query) - 1)}
+        matches = sum(1 for bigram in bigrams if bigram in chinese_searchable)
+        return score + matches
+
+    def _load_knowledge_index(self, knowledge_dir: str = "data/knowledge") -> list[dict]:
+        if self._knowledge_index is None:
+            index_path = Path(knowledge_dir) / "_index.json"
+            try:
+                self._knowledge_index = json.loads(index_path.read_text(encoding="utf-8"))
+            except (FileNotFoundError, json.JSONDecodeError):
+                self._knowledge_index = []
+        return self._knowledge_index
+
+    def _keyword_search(self, query: str, top_k: int, knowledge_dir: str = "data/knowledge") -> list[dict]:
+        entries = self._load_knowledge_index(knowledge_dir)
+        scored_entries = [
+            (self.keyword_score(query, entry), entry)
+            for entry in entries
+        ]
+        scored_entries = [item for item in scored_entries if item[0] > 0]
+        scored_entries.sort(key=lambda item: item[0], reverse=True)
+
+        results = []
+        for score, entry in scored_entries[:top_k]:
+            md_path = Path(knowledge_dir) / entry.get("mdFile", "")
+            if not md_path.exists():
+                continue
+            results.append({
+                "id": entry["id"],
+                "metadata": {
+                    "id": entry["id"],
+                    "name": entry.get("name", ""),
+                    "type": entry.get("type", ""),
+                    "namespace": entry.get("namespace", ""),
+                    "source": entry.get("source", ""),
+                    "sdkVersion": entry.get("sdkVersion", ""),
+                    "aliases": ",".join(entry.get("aliases", [])[:5]),
+                    "is_overview": entry.get("is_overview", False),
+                },
+                "document": md_path.read_text(encoding="utf-8")[:500],
+                "distance": None,
+                "keyword_score": score,
+            })
+        return results
+
+    def search_hybrid(self, query: str, top_k: int = 5, boost_overview: bool = False) -> list[dict]:
+        """合并语义检索和符号/别名词法检索，优先保障已知 API 的可发现性。"""
+        candidate_count = min(max(top_k * 10, 50), self.collection.count())
+        semantic_results = self.search(query, top_k=max(candidate_count, top_k))
+
+        if boost_overview:
+            for result in semantic_results:
+                if result.get("metadata", {}).get("is_overview"):
+                    result["distance"] = result.get("distance", 1.0) * 0.8
+            semantic_results.sort(key=lambda item: item.get("distance", 1.0))
+
+        keyword_results = self._keyword_search(query, top_k=candidate_count)
+        merged = {}
+        for rank, result in enumerate(semantic_results):
+            merged[result["id"]] = {**result, "hybrid_score": 1 / (rank + 1)}
+
+        for rank, result in enumerate(keyword_results):
+            existing = merged.get(result["id"], {})
+            merged[result["id"]] = {
+                **existing,
+                **result,
+                "hybrid_score": existing.get("hybrid_score", 0) + result["keyword_score"] + 1 / (rank + 1),
+            }
+
+        return sorted(merged.values(), key=lambda item: item["hybrid_score"], reverse=True)[:top_k]
 
     def count(self) -> int:
         """返回文档数量"""

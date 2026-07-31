@@ -52,11 +52,12 @@ export default function Home() {
       const assistantMsg: ChatMessageType = {
         role: "assistant",
         content: res.answer,
+        citations: res.citations,
       };
       setMessages((prev) => [...prev, assistantMsg]);
       setSessionId(res.session_id);
       setRefreshTrigger((t) => t + 1);
-    } catch (err: any) {
+    } catch (err: unknown) {
       const errorMsg: ChatMessageType = {
         role: "assistant",
         content: getFriendlyErrorMessage(err),

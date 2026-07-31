@@ -4,7 +4,7 @@
 评测指标:
 1. 检索召回率: Recall@1/3/5
 2. 答案正确性: Answer Correctness (基于关键词匹配)
-3. 答案忠实度: Faithfulness (基于引用检测)
+3. 来源有效率: Citation Validity（引用必须存在于知识库索引）
 """
 
 import json
@@ -24,7 +24,7 @@ TEST_DATA_PATH = Path(__file__).parent / "test_data.json"
 TOP_K_VALUES = [1, 3, 5]
 REQUIRED_RECALL_AT_5 = 0.85
 REQUIRED_CORRECTNESS = 0.80
-REQUIRED_FAITHFULNESS = 0.90
+REQUIRED_CITATION_VALIDITY = 0.90
 
 
 def load_test_data() -> list[dict]:
@@ -52,7 +52,7 @@ def evaluate_retrieval(vs: VectorStore, test_data: list[dict]) -> dict:
         reference_docs = set(item["reference_docs"])
 
         # 检索
-        retrieved = vs.search(question, top_k=max(TOP_K_VALUES))
+        retrieved = vs.search_hybrid(question, top_k=max(TOP_K_VALUES))
         retrieved_ids = [r.get("id") or r.get("metadata", {}).get("id", "") for r in retrieved]
 
         for k in TOP_K_VALUES:
@@ -92,10 +92,17 @@ def evaluate_answer(agent: AgentRunner, test_data: list[dict]) -> dict:
 
     total = len(test_data)
     correct_count = 0
-    faithful_count = 0
-    source_count = 0
+    citation_valid_count = 0
+    reference_cited_count = 0
     total_tokens_estimate = 0
     total_time = 0
+
+    index_path = Path(__file__).parent.parent / "data" / "knowledge" / "_index.json"
+    try:
+        knowledge_index = json.loads(index_path.read_text(encoding="utf-8"))
+        index_by_id = {entry.get("id"): entry for entry in knowledge_index}
+    except (FileNotFoundError, json.JSONDecodeError):
+        index_by_id = {}
 
     results = []
 
@@ -109,6 +116,7 @@ def evaluate_answer(agent: AgentRunner, test_data: list[dict]) -> dict:
 
         # 调用 Agent 生成答案
         start = time.time()
+        result = {}
         try:
             result = agent.chat(question)
             answer = result.get("answer", "")
@@ -131,24 +139,31 @@ def evaluate_answer(agent: AgentRunner, test_data: list[dict]) -> dict:
         if is_correct:
             correct_count += 1
 
-        # 2. 答案忠实度: 检查是否引用了来源
-        has_source = any(
-            doc_name in answer or doc_name.replace(".", "_") in answer
-            for doc_name in reference_docs
+        # 2. 来源有效率：引用必须是 Agent 根据实际检索结果从知识库索引装配的。
+        citations = result.get("citations", [])
+        citation_valid = bool(citations) and all(
+            (entry := index_by_id.get(citation.get("id")))
+            and citation.get("source") == entry.get("source", "")
+            and citation.get("sdk_version", "") == entry.get("sdkVersion", "")
+            for citation in citations
         )
-        if has_source:
-            source_count += 1
+        if citation_valid:
+            citation_valid_count += 1
 
-        # 3. 忠实度: 综合引用和知识库一致性
-        is_faithful = has_source or len(answer) > 50
-        if is_faithful:
-            faithful_count += 1
+        # 3. 参考文档命中率：评测样本期望的知识单元至少被引用一次。
+        citation_ids = [citation.get("id", "") for citation in citations]
+        reference_cited = any(
+            any(reference in citation_id for citation_id in citation_ids)
+            for reference in reference_docs
+        )
+        if reference_cited:
+            reference_cited_count += 1
 
         results.append({
             "qid": qid,
             "correct": is_correct,
-            "faithful": is_faithful,
-            "has_source": has_source,
+            "citation_valid": citation_valid,
+            "reference_cited": reference_cited,
             "keyword_ratio": round(keyword_ratio, 2),
             "answer_length": len(answer),
             "time": round(elapsed, 1),
@@ -160,37 +175,41 @@ def evaluate_answer(agent: AgentRunner, test_data: list[dict]) -> dict:
 
     # 汇总
     correctness = correct_count / total
-    faithfulness = faithful_count / total
-    source_rate = source_count / total
+    citation_validity = citation_valid_count / total
+    reference_cited_rate = reference_cited_count / total
     avg_time = total_time / total
 
     metrics = {
         "Answer_Correctness": round(correctness, 4),
-        "Answer_Faithfulness": round(faithfulness, 4),
-        "Source_Reference_Rate": round(source_rate, 4),
+        "Citation_Validity": round(citation_validity, 4),
+        "Reference_Cited_Rate": round(reference_cited_rate, 4),
         "Avg_Response_Time": round(avg_time, 1),
     }
 
     print(f"\n  答案正确率: {correct_count}/{total} = {correctness:.2%}")
-    print(f"  答案忠实度: {faithful_count}/{total} = {faithfulness:.2%}")
-    print(f"  来源引用率: {source_count}/{total} = {source_rate:.2%}")
+    print(f"  来源有效率: {citation_valid_count}/{total} = {citation_validity:.2%}")
+    print(f"  参考文档命中率: {reference_cited_count}/{total} = {reference_cited_rate:.2%}")
     print(f"  平均响应时间: {avg_time:.1f}s")
 
     correctness_ok = correctness >= REQUIRED_CORRECTNESS
-    faithfulness_ok = faithfulness >= REQUIRED_FAITHFULNESS
+    citation_validity_ok = citation_validity >= REQUIRED_CITATION_VALIDITY
 
     print(f"\n  正确性目标: >= {REQUIRED_CORRECTNESS:.0%}  {'✓ 通过' if correctness_ok else '✗ 未通过'}")
-    print(f"  忠实度目标: >= {REQUIRED_FAITHFULNESS:.0%}  {'✓ 通过' if faithfulness_ok else '✗ 未通过'}")
+    print(f"  来源有效率目标: >= {REQUIRED_CITATION_VALIDITY:.0%}  {'✓ 通过' if citation_validity_ok else '✗ 未通过'}")
 
     metrics["pass_correctness"] = correctness_ok
-    metrics["pass_faithfulness"] = faithfulness_ok
+    metrics["pass_citation_validity"] = citation_validity_ok
 
     # 保存详细结果
     output_path = Path(__file__).parent / "eval_results.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump({
             "retrieval": {"recall_at_5": metrics.get("pass", False)},
-            "answer": {"correctness": correctness, "faithfulness": faithfulness},
+            "answer": {
+                "correctness": correctness,
+                "citation_validity": citation_validity,
+                "reference_cited_rate": reference_cited_rate,
+            },
             "details": results,
         }, f, ensure_ascii=False, indent=2)
     print(f"\n  详细结果已保存到: {output_path}")
@@ -230,14 +249,14 @@ def main():
         print(f"    Recall@{k}: {retrieval_metrics.get(f'Recall@{k}', 0):.2%}")
     print(f"\n  答案指标:")
     print(f"    Answer Correctness: {answer_metrics['Answer_Correctness']:.2%}")
-    print(f"    Answer Faithfulness: {answer_metrics['Answer_Faithfulness']:.2%}")
-    print(f"    Source Reference Rate: {answer_metrics['Source_Reference_Rate']:.2%}")
+    print(f"    Citation Validity: {answer_metrics['Citation_Validity']:.2%}")
+    print(f"    Reference Cited Rate: {answer_metrics['Reference_Cited_Rate']:.2%}")
     print(f"    Avg Response Time: {answer_metrics['Avg_Response_Time']:.1f}s")
 
     all_pass = (
         retrieval_metrics.get("pass", False)
         and answer_metrics.get("pass_correctness", False)
-        and answer_metrics.get("pass_faithfulness", False)
+        and answer_metrics.get("pass_citation_validity", False)
     )
 
     print(f"\n  整体结果: {'✓ 全部通过' if all_pass else '✗ 部分未通过'}")

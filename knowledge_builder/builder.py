@@ -9,6 +9,7 @@
 
 import json
 import os
+import hashlib
 from pathlib import Path
 from typing import Optional
 
@@ -29,6 +30,7 @@ class KnowledgeBuilder:
         for symbol in symbols:
             # 生成 Markdown
             md_content = symbol.to_markdown()
+            content_hash = hashlib.sha256(md_content.encode("utf-8")).hexdigest()
 
             # 生成 metadata
             metadata = symbol.to_dict()
@@ -57,23 +59,41 @@ class KnowledgeBuilder:
                 "references": symbol.references,
                 "startLine": symbol.start_line,
                 "endLine": symbol.end_line,
+                "contentHash": content_hash,
             }
             index.append(index_entry)
 
-        # 保存索引
+        # 保留由 docs/rag 同步产生的文档条目。SDK 流水线和 RAG 文档同步
+        # 共用同一份索引，避免重跑 SDK 解析后 RAG 文档从向量库中消失。
         index_path = self.output_dir / "_index.json"
+        rag_entries = []
+        if index_path.exists():
+            try:
+                existing_index = json.loads(index_path.read_text(encoding="utf-8"))
+                rag_entries = [
+                    entry for entry in existing_index
+                    if entry.get("namespace") == "docs.rag"
+                ]
+            except json.JSONDecodeError:
+                print("[warn] 现有知识库索引无法解析，将仅重建 SDK 条目")
+
+        merged_index = index + rag_entries
+
+        # 保存索引
         index_path.write_text(
-            json.dumps(index, ensure_ascii=False, indent=2),
+            json.dumps(merged_index, ensure_ascii=False, indent=2),
             encoding="utf-8"
         )
 
         print(f"知识构建完成: {len(symbols)} 个知识单元")
         print(f"  输出目录: {self.output_dir}")
-        print(f"  Markdown: {len(index)} 个文件")
-        print(f"  JSON metadata: {len(index)} 个文件")
+        print(f"  Markdown: {len(index)} 个 SDK 文件")
+        print(f"  JSON metadata: {len(index)} 个 SDK 文件")
+        if rag_entries:
+            print(f"  已保留 RAG 文档: {len(rag_entries)} 个")
         print(f"  索引: _index.json")
 
-        return index
+        return merged_index
 
 
 class GraphBuilder:
