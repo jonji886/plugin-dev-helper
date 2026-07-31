@@ -191,6 +191,7 @@ cd frontend && npm install
 ```
 
 > 后端运行与测试命令均使用 `.venv/bin/python`，避免系统 `python` 指向错误版本。
+> 项目包含多个顶级 Python 包，已在 `pyproject.toml` 中显式声明；请保留 `-e ".[dev]"` 的安装方式，以便本地与 GitHub Actions 使用相同的依赖安装路径。
 
 ### 2. 配置环境变量
 

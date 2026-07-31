@@ -18,6 +18,7 @@
 - 独立检索质量门禁脚本，CI 重建索引后校验 Recall@5 ≥ 85%
 
 ### Fixed
+- 修复 CI 在干净环境执行 `pip install -e '.[dev]'` 时无法自动发现多个顶级 Python 包的问题
 - 修复 SDK 多分块解析时对已解析符号重复累计行偏移的问题
 - 修复 SDK 重建覆盖 RAG 文档索引、RAG 内容未变仍触发重建的问题
 - 修复 `DELETE /api/chat/history` 未传会话 ID 时未实际清除全部会话的问题

@@ -29,6 +29,20 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.setuptools]
+# 项目采用扁平目录，不能依赖 setuptools 自动发现多个顶级包。
+# 显式声明可避免干净的 CI 环境在 `pip install -e .` 阶段构建失败。
+packages = [
+    "agent",
+    "app",
+    "eval",
+    "graph_builder",
+    "knowledge_builder",
+    "sdk_parser",
+    "scripts",
+    "vector_store",
+]
+
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
