@@ -3,6 +3,7 @@ export interface ChatMessage {
   content: string;
   timestamp?: string;
   citations?: Citation[];
+  requestId?: string;
 }
 
 export interface Citation {
@@ -19,6 +20,7 @@ export interface ChatResponse {
   intent: string;
   retrieved_count: number;
   citations: Citation[];
+  request_id: string;
 }
 
 export interface SessionInfo {
@@ -30,4 +32,12 @@ export interface SessionInfo {
 export interface ChatRequest {
   query: string;
   session_id?: string;
+}
+
+export interface HistoryMessage {
+  role: "user" | "assistant";
+  content: string;
+  citations?: Citation[];
+  timestamp?: string;
+  request_id?: string;
 }

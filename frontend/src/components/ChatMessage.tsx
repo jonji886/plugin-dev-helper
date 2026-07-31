@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 
 interface Props {
   message: ChatMessageType;
+  onFeedback?: (requestId: string, helpful: boolean) => void;
 }
 
 function CopyButton({ text, tone = "dark" }: { text: string; tone?: "dark" | "light" }) {
@@ -25,7 +26,7 @@ function CopyButton({ text, tone = "dark" }: { text: string; tone?: "dark" | "li
   );
 }
 
-export default function ChatMessage({ message }: Props) {
+export default function ChatMessage({ message, onFeedback }: Props) {
   const isUser = message.role === "user";
 
   return (
@@ -124,6 +125,23 @@ export default function ChatMessage({ message }: Props) {
                     );
                   })}
                 </ul>
+              </div>
+            )}
+            {message.requestId && onFeedback && (
+              <div className="mt-4 flex items-center justify-end gap-2 border-t border-zinc-200 pt-3 text-xs text-zinc-500 dark:border-zinc-700">
+                <span className="mr-auto">这条回答有帮助吗？</span>
+                <button
+                  onClick={() => onFeedback(message.requestId!, true)}
+                  className="rounded px-2 py-1 hover:bg-emerald-100 hover:text-emerald-700 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
+                >
+                  有帮助
+                </button>
+                <button
+                  onClick={() => onFeedback(message.requestId!, false)}
+                  className="rounded px-2 py-1 hover:bg-rose-100 hover:text-rose-700 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
+                >
+                  无帮助
+                </button>
               </div>
             )}
           </>

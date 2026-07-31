@@ -5,6 +5,10 @@ FastAPI 后端 - 插件开发 AI 助手 API
 import os
 import sys
 import re
+import asyncio
+import json
+import uuid
+from time import perf_counter
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -23,6 +27,10 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from agent import AgentRunner
+from app.config import get_settings
+from app.metrics_store import MetricsStore
+
+settings = get_settings()
 
 app = FastAPI(
     title="插件开发 AI 助手",
@@ -31,16 +39,9 @@ app = FastAPI(
 )
 
 # CORS 配置：默认只允许本地前端；部署时通过 FRONTEND_ORIGINS 配置多个域名。
-allowed_origins = [
-    origin.strip()
-    for origin in os.getenv("FRONTEND_ORIGINS", "http://localhost:3000").split(",")
-    if origin.strip()
-]
-if "*" in allowed_origins:
-    raise ValueError("FRONTEND_ORIGINS 不能包含通配符 *")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=settings.frontend_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -48,12 +49,18 @@ app.add_middleware(
 
 # 全局 Agent Runner
 agent_runner: Optional[AgentRunner] = None
+metrics_store = MetricsStore(settings.database_path)
 
 
 def get_agent() -> AgentRunner:
     global agent_runner
     if agent_runner is None:
-        agent_runner = AgentRunner()
+        agent_runner = AgentRunner(
+            database_path=str(settings.database_path),
+            top_k=settings.retrieval_top_k,
+            timeout_seconds=settings.llm_timeout_seconds,
+            max_retries=settings.llm_max_retries,
+        )
     return agent_runner
 
 
@@ -80,12 +87,19 @@ class ChatResponse(BaseModel):
     intent: str = ""
     retrieved_count: int = 0
     citations: list[Citation] = Field(default_factory=list)
+    request_id: str
 
 
 class SessionInfo(BaseModel):
     id: str
     message_count: int = 0
     last_message: str = ""
+
+
+class FeedbackRequest(BaseModel):
+    request_id: str = Field(min_length=1, max_length=64)
+    helpful: bool
+    comment: str = Field(default="", max_length=1000)
 
 
 # ========== API 路由 ==========
@@ -108,6 +122,31 @@ async def health():
     }
 
 
+@app.get("/api/ready")
+async def ready():
+    """检查知识库和模型配置是否具备处理请求的条件。"""
+    try:
+        from vector_store import VectorStore
+        vector_count = VectorStore(persist_dir=str(settings.chroma_path)).count()
+        index_path = settings.knowledge_path / "_index.json"
+        knowledge_count = len(json.loads(index_path.read_text(encoding="utf-8")))
+    except Exception as error:
+        raise HTTPException(status_code=503, detail=f"服务未就绪: {error}") from error
+
+    return {
+        "status": "ready" if vector_count and knowledge_count else "degraded",
+        "vector_documents": vector_count,
+        "knowledge_entries": knowledge_count,
+        "llm_configured": bool(os.getenv("DEEPSEEK_API_KEY", "").strip()),
+    }
+
+
+@app.get("/api/metrics")
+async def metrics():
+    """返回最近 1,000 个请求的聚合运行指标。"""
+    return metrics_store.metrics()
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """对话接口"""
@@ -116,10 +155,37 @@ async def chat(request: ChatRequest):
     validate_session_id(request.session_id)
 
     agent = get_agent()
-    result = agent.chat(
-        query=request.query.strip(),
-        session_id=request.session_id,
-    )
+    request_id = str(uuid.uuid4())
+    started_at = perf_counter()
+    try:
+        # Agent 内部包含 embedding 与同步 LLM 调用，放入工作线程避免阻塞事件循环。
+        result = await asyncio.to_thread(
+            agent.chat,
+            request.query.strip(),
+            request.session_id,
+            request_id,
+        )
+        status = "success"
+        error_message = None
+    except Exception as error:
+        status = "error"
+        error_message = str(error)
+        metrics_store.record_request({
+            "request_id": request_id, "session_id": request.session_id or "",
+            "query": request.query.strip(), "status": status, "error_message": error_message,
+        })
+        raise HTTPException(status_code=500, detail="处理问题时发生内部错误") from error
+
+    total_ms = (perf_counter() - started_at) * 1000
+    metrics_store.record_request({
+        "request_id": request_id, "session_id": result["session_id"],
+        "query": request.query.strip(), "intent": result.get("intent", ""),
+        "retrieved_count": result.get("retrieved_count", 0),
+        "citation_count": len(result.get("citations", [])),
+        "retrieval_ms": result.get("retrieval_ms", 0.0),
+        "llm_ms": result.get("llm_ms", 0.0), "total_ms": total_ms,
+        "status": status,
+    })
 
     return ChatResponse(
         answer=result["answer"],
@@ -127,6 +193,7 @@ async def chat(request: ChatRequest):
         intent=result.get("intent", ""),
         retrieved_count=result.get("retrieved_count", 0),
         citations=result.get("citations", []),
+        request_id=request_id,
     )
 
 
@@ -155,3 +222,10 @@ async def clear_history(session_id: Optional[str] = None):
 
     agent.session_manager.clear_all_sessions()
     return {"message": "所有会话已清除"}
+
+
+@app.post("/api/chat/feedback", status_code=204)
+async def submit_feedback(feedback: FeedbackRequest):
+    """保存用户对某一次回答的反馈。"""
+    if not metrics_store.record_feedback(feedback.request_id, feedback.helpful, feedback.comment.strip()):
+        raise HTTPException(status_code=404, detail="未找到对应请求")
