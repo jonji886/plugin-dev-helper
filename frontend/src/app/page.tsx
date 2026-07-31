@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { ChatMessage as ChatMessageType } from "@/types/chat";
-import { sendMessage, getHistory } from "@/services/chatService";
+import { ChatMessage as ChatMessageType, HistoryMessage } from "@/types/chat";
+import { sendMessage, getHistory, submitFeedback } from "@/services/chatService";
 import ChatMessage from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
 import ChatHistory from "@/components/ChatHistory";
@@ -53,6 +53,7 @@ export default function Home() {
         role: "assistant",
         content: res.answer,
         citations: res.citations,
+        requestId: res.request_id,
       };
       setMessages((prev) => [...prev, assistantMsg]);
       setSessionId(res.session_id);
@@ -73,13 +74,24 @@ export default function Home() {
     setSessionId(undefined);
   }, []);
 
+  const handleFeedback = useCallback(async (requestId: string, helpful: boolean) => {
+    try {
+      await submitFeedback(requestId, helpful);
+    } catch (error) {
+      console.error("提交反馈失败", error);
+    }
+  }, []);
+
   const handleSelectSession = useCallback(async (sid: string) => {
     setSessionId(sid);
     setMessages([]);
     setLoading(true);
     try {
       const history = await getHistory(sid);
-      setMessages(history as ChatMessageType[]);
+      setMessages((history as HistoryMessage[]).map(({ request_id, ...message }) => ({
+        ...message,
+        requestId: request_id,
+      })));
     } catch (err) {
       setMessages([
         {
@@ -158,7 +170,7 @@ export default function Home() {
             )}
 
             {messages.map((msg, i) => (
-              <ChatMessage key={i} message={msg} />
+              <ChatMessage key={i} message={msg} onFeedback={handleFeedback} />
             ))}
 
             {loading && messages[messages.length - 1]?.role === "user" && (

@@ -12,10 +12,12 @@ Agent 节点:
 
 import json
 import os
+import sqlite3
 import traceback
 from pathlib import Path
 from typing import TypedDict, Optional, Annotated, Sequence
-from datetime import datetime
+from datetime import datetime, timezone
+from time import perf_counter
 
 import operator
 
@@ -94,12 +96,14 @@ class AgentState(TypedDict):
     expanded_context: str  # 展开后的上下文
     answer: str  # 生成的回答
     citations: list[dict]  # 基于检索结果生成的结构化来源
+    retrieval_ms: float
+    llm_ms: float
     session_id: str  # 会话 ID
 
 
 # ========== DeepSeek LLM 初始化 ==========
 
-def get_llm():
+def get_llm(timeout_seconds: float = 30.0, max_retries: int = 2):
     """获取 DeepSeek LLM 实例"""
     api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
     if api_key:
@@ -115,6 +119,8 @@ def get_llm():
         base_url="https://api.deepseek.com/v1",
         temperature=0.1,
         max_tokens=4096,
+        timeout=timeout_seconds,
+        max_retries=max_retries,
     )
 
 
@@ -203,6 +209,7 @@ class Retriever:
 
     def __call__(self, state: AgentState) -> dict:
         query = state.get("rewritten_query") or state["current_query"]
+        start = perf_counter()
 
         # 判断是否为总览型问题，若是则对 overview 文档加权
         boost_overview = is_overview_query(query)
@@ -218,7 +225,7 @@ class Retriever:
             print(traceback.format_exc())
             results = []
 
-        return {"retrieved_docs": results}
+        return {"retrieved_docs": results, "retrieval_ms": (perf_counter() - start) * 1000}
 
 
 class GraphExpander:
@@ -289,16 +296,20 @@ class AnswerGenerator:
     def __call__(self, state: AgentState) -> dict:
         query = state.get("rewritten_query") or state["current_query"]
         context = state.get("expanded_context", "")
+        start = perf_counter()
 
         if not context:
             answer = "抱歉，我在知识库中没有找到相关的信息。请尝试用其他方式描述你的问题，或查阅某设计平台开放平台官方文档。"
-            return {"answer": answer}
+            return {"answer": answer, "llm_ms": (perf_counter() - start) * 1000}
 
         system_content = self.system_prompt or "你是一个严谨的 SDK 问答助手，请根据提供的知识库内容回答问题。"
         context_text = context[:6000]
 
         if self.llm is None:
-            return {"answer": f"当前未配置模型密钥，以下是知识库中的相关信息：\n\n{context_text[:2000]}"}
+            return {
+                "answer": f"当前未配置模型密钥，以下是知识库中的相关信息：\n\n{context_text[:2000]}",
+                "llm_ms": (perf_counter() - start) * 1000,
+            }
 
         try:
             response = self.llm.invoke([
@@ -324,20 +335,20 @@ class AnswerGenerator:
             print(traceback.format_exc())
             answer = f"抱歉，回答生成失败，请稍后重试。以下是我在知识库中找到的相关信息：\n\n{context_text[:2000]}"
 
-        return {"answer": answer}
+        return {"answer": answer, "llm_ms": (perf_counter() - start) * 1000}
 
 
 # ========== Agent 构建 ==========
 
-def build_agent():
+def build_agent(top_k: int = 5, timeout_seconds: float = 30.0, max_retries: int = 2):
     """构建 LangGraph Agent"""
-    llm = get_llm()
+    llm = get_llm(timeout_seconds=timeout_seconds, max_retries=max_retries)
     vector_store = VectorStore()
 
     # 创建节点实例
     intent_router = IntentRouter(llm)
     query_rewrite = QueryRewrite(llm)
-    retriever = Retriever(vector_store)
+    retriever = Retriever(vector_store, top_k=top_k)
     graph_expander = GraphExpander()
     answer_generator = AnswerGenerator(llm)
 
@@ -369,38 +380,108 @@ def build_agent():
 # ========== 会话管理 ==========
 
 class SessionManager:
-    """会话管理器（内存实现）"""
+    """会话管理器；传入 SQLite 路径后，消息可跨服务重启保留。"""
 
-    def __init__(self):
+    def __init__(self, database_path: Optional[str] = None):
         self.sessions: dict[str, list[dict]] = {}
+        self.database_path = Path(database_path) if database_path else None
+        if self.database_path:
+            self.database_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._connect() as connection:
+                connection.executescript("""
+                    CREATE TABLE IF NOT EXISTS sessions (
+                        id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+                    );
+                    CREATE TABLE IF NOT EXISTS messages (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        session_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL,
+                        citations_json TEXT NOT NULL DEFAULT '[]', request_id TEXT,
+                        created_at TEXT NOT NULL
+                    );
+                """)
+
+    def _connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(self.database_path, timeout=10)
+        connection.row_factory = sqlite3.Row
+        return connection
 
     def create_session(self) -> str:
         import uuid
         session_id = str(uuid.uuid4())[:8]
+        if self.database_path:
+            now = datetime.now(timezone.utc).isoformat()
+            with self._connect() as connection:
+                connection.execute(
+                    "INSERT INTO sessions (id, created_at, updated_at) VALUES (?, ?, ?)",
+                    (session_id, now, now),
+                )
+            return session_id
         self.sessions[session_id] = []
         return session_id
 
     def get_history(self, session_id: str) -> list[dict]:
+        if self.database_path:
+            with self._connect() as connection:
+                rows = connection.execute("""
+                    SELECT role, content, citations_json, request_id, created_at
+                    FROM messages WHERE session_id = ? ORDER BY id
+                """, (session_id,)).fetchall()
+            return [{
+                "role": row["role"], "content": row["content"],
+                "citations": json.loads(row["citations_json"]), "request_id": row["request_id"],
+                "timestamp": row["created_at"],
+            } for row in rows]
         return self.sessions.get(session_id, [])
 
-    def add_message(self, session_id: str, role: str, content: str):
+    def add_message(self, session_id: str, role: str, content: str,
+                    citations: Optional[list[dict]] = None, request_id: Optional[str] = None):
+        now = datetime.now(timezone.utc).isoformat()
+        if self.database_path:
+            with self._connect() as connection:
+                connection.execute(
+                    "INSERT OR IGNORE INTO sessions (id, created_at, updated_at) VALUES (?, ?, ?)",
+                    (session_id, now, now),
+                )
+                connection.execute("""
+                    INSERT INTO messages (session_id, role, content, citations_json, request_id, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (session_id, role, content, json.dumps(citations or [], ensure_ascii=False), request_id, now))
+                connection.execute("UPDATE sessions SET updated_at = ? WHERE id = ?", (now, session_id))
+            return
         if session_id not in self.sessions:
             self.sessions[session_id] = []
         self.sessions[session_id].append({
-            "role": role,
-            "content": content,
-            "timestamp": datetime.now().isoformat(),
+            "role": role, "content": content, "citations": citations or [],
+            "request_id": request_id, "timestamp": now,
         })
 
     def delete_session(self, session_id: str):
-        if session_id in self.sessions:
-            del self.sessions[session_id]
+        if self.database_path:
+            with self._connect() as connection:
+                connection.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
+                connection.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+            return
+        self.sessions.pop(session_id, None)
 
     def clear_all_sessions(self):
-        """清除全部内存会话。"""
+        if self.database_path:
+            with self._connect() as connection:
+                connection.execute("DELETE FROM messages")
+                connection.execute("DELETE FROM sessions")
+            return
         self.sessions.clear()
 
     def get_all_sessions(self) -> list[dict]:
+        if self.database_path:
+            with self._connect() as connection:
+                rows = connection.execute("""
+                    SELECT s.id, COUNT(m.id) AS message_count,
+                        COALESCE((SELECT content FROM messages WHERE session_id = s.id ORDER BY id DESC LIMIT 1), '') AS last_message
+                    FROM sessions s LEFT JOIN messages m ON m.session_id = s.id
+                    GROUP BY s.id ORDER BY s.updated_at DESC
+                """).fetchall()
+            return [{"id": row["id"], "message_count": row["message_count"],
+                     "last_message": row["last_message"][:50]} for row in rows]
         return [
             {"id": sid, "message_count": len(msgs), "last_message": msgs[-1]["content"][:50] if msgs else ""}
             for sid, msgs in self.sessions.items()
@@ -412,18 +493,20 @@ class SessionManager:
 class AgentRunner:
     """Agent 运行器"""
 
-    def __init__(self):
-        self.agent = build_agent()
-        self.session_manager = SessionManager()
+    def __init__(self, database_path: Optional[str] = None, top_k: int = 5,
+                 timeout_seconds: float = 30.0, max_retries: int = 2):
+        self.agent = build_agent(top_k=top_k, timeout_seconds=timeout_seconds, max_retries=max_retries)
+        self.session_manager = SessionManager(database_path)
 
-    def chat(self, query: str, session_id: Optional[str] = None) -> dict:
+    def chat(self, query: str, session_id: Optional[str] = None,
+             request_id: Optional[str] = None) -> dict:
         """处理用户消息"""
         # 创建或获取会话
-        if not session_id or session_id not in self.session_manager.sessions:
+        if not session_id or (not self.session_manager.database_path and session_id not in self.session_manager.sessions):
             session_id = self.session_manager.create_session()
 
         # 添加用户消息
-        self.session_manager.add_message(session_id, "user", query)
+        self.session_manager.add_message(session_id, "user", query, request_id=request_id)
 
         # 构建消息历史
         history = self.session_manager.get_history(session_id)
@@ -439,6 +522,8 @@ class AgentRunner:
             "intent": "",
             "retrieved_docs": [],
             "citations": [],
+            "retrieval_ms": 0.0,
+            "llm_ms": 0.0,
         }
 
         # 运行 Agent
@@ -452,6 +537,8 @@ class AgentRunner:
                 "expanded_context": "",
                 "answer": "",
                 "citations": [],
+                "retrieval_ms": 0.0,
+                "llm_ms": 0.0,
                 "session_id": session_id,
             })
             answer = result.get("answer", "")
@@ -460,13 +547,17 @@ class AgentRunner:
             print(traceback.format_exc())
             answer = f"抱歉，处理您的问题时出现错误，请稍后重试。错误信息: {str(e)}"
 
-        # 保存 AI 回复
-        self.session_manager.add_message(session_id, "assistant", answer)
+        citations = build_citations(result.get("retrieved_docs", []))
+        self.session_manager.add_message(
+            session_id, "assistant", answer, citations=citations, request_id=request_id
+        )
 
         return {
             "answer": answer,
             "session_id": session_id,
             "intent": result.get("intent", ""),
             "retrieved_count": len(result.get("retrieved_docs", [])),
-            "citations": build_citations(result.get("retrieved_docs", [])),
+            "citations": citations,
+            "retrieval_ms": result.get("retrieval_ms", 0.0),
+            "llm_ms": result.get("llm_ms", 0.0),
         }

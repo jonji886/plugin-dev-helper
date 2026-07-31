@@ -18,6 +18,8 @@ frontend/.npm-cache/
 data/knowledge/*
 data/graph/*
 data/chroma/*
+data/*.sqlite3
+data/*.sqlite3-*
 
 # Environment
 .env

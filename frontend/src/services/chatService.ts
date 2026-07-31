@@ -1,4 +1,4 @@
-import { ChatResponse, SessionInfo } from "@/types/chat";
+import { ChatResponse, HistoryMessage, SessionInfo } from "@/types/chat";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -40,7 +40,7 @@ export async function sendMessage(
 
 export async function getHistory(
   sessionId?: string
-): Promise<{ role: string; content: string }[] | SessionInfo[]> {
+): Promise<HistoryMessage[] | SessionInfo[]> {
   const params = sessionId ? `?session_id=${sessionId}` : "";
   return requestJson(`${API_BASE}/api/chat/history${params}`);
 }
@@ -49,5 +49,17 @@ export async function clearHistory(sessionId?: string): Promise<{ message: strin
   const params = sessionId ? `?session_id=${sessionId}` : "";
   return requestJson(`${API_BASE}/api/chat/history${params}`, {
     method: "DELETE",
+  });
+}
+
+export async function submitFeedback(
+  requestId: string,
+  helpful: boolean,
+  comment = ""
+): Promise<void> {
+  await requestJson(`${API_BASE}/api/chat/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ request_id: requestId, helpful, comment }),
   });
 }
