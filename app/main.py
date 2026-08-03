@@ -21,7 +21,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 load_dotenv(PROJECT_ROOT / ".env")
 print(f"[env] .env 加载: {'已找到' if (PROJECT_ROOT / '.env').exists() else '未找到'}")
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -151,6 +151,12 @@ async def ready():
 async def metrics():
     """返回最近 1,000 个请求的聚合运行指标。"""
     return metrics_store.metrics()
+
+
+@app.get("/api/metrics/failures")
+async def metric_failures(limit: int = Query(default=50, ge=1, le=1000)):
+    """返回低质量候选请求，便于人工归因和沉淀回归案例。"""
+    return metrics_store.failure_cases(limit)
 
 
 @app.post("/api/chat", response_model=ChatResponse)

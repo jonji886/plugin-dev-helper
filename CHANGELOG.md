@@ -7,6 +7,7 @@
 ## [Unreleased]
 
 ### Added
+- 增加可解释答案评分、人工确认回归集加载、失败请求查询接口和 SQLite 反馈候选 JSONL 导出脚本，形成“反馈 → 归因 → 回归”的评测闭环
 - 统一知识构建流水线：SDK 与 `docs/rag/` 文档合并为同一索引后统一构建 Chroma 向量库
 - 聊天接口增加结构化 `citations` 字段，包含知识单元 ID、来源、SDK 版本和源行号；前端新增来源展示与复制
 - 新增 5 个回归测试，覆盖分块解析行号、RAG 增量同步、知识索引合并、引用装配和会话 API
@@ -18,6 +19,7 @@
 - 独立检索质量门禁脚本，CI 重建索引后校验 Recall@5 ≥ 85%
 
 ### Fixed
+- 修复宽窗口下前端根节点按内容收缩导致主聊天区域只占左侧、右侧出现空白的问题，并完善侧栏和输入区的响应式宽度
 - 移除未使用且已从新版 LangChain 删除的 `langchain.callbacks.base` 导入及冗余的 `langchain`、`langchain-community` 依赖，修复 Python 3.11 CI 单测失败
 - 修复前端将反馈接口的 `204 No Content` 当作 JSON 解析，点击“有帮助 / 无帮助”时报错的问题
 - 修复 `CHROMA_PATH`、`KNOWLEDGE_PATH` 和 `GRAPH_PATH` 未传入 Agent 检索与图扩展链路的问题
@@ -32,7 +34,8 @@
 
 ### Changed
 - 聊天请求在线程中执行，避免 embedding 与同步 LLM 调用阻塞 FastAPI 事件循环
-- README 对齐当前评测实现、安装方式、API 与 P0 运行边界
+- README 新增 Docker 部署章节：双容器架构、部署步骤、环境变量与踩坑记录；项目结构补充 `deploy/` 目录说明
+- `deploy/docker-compose.yml` 前端构建显式指定 `dockerfile: ../deploy/frontend/Dockerfile`（context 指向项目根 `frontend/` 源码），前端 Dockerfile 独立于源码目录维护，避免同步源码时误删；服务器部署目录同步重组为 `deploy/` 布局
 - 系统提示词改为禁止模型自行虚构来源，来源由后端基于检索结果附加
 - 移除未在当前评测脚本中使用的 RAGAS 与 datasets 运行时依赖
 

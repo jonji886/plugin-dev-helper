@@ -105,7 +105,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-white dark:bg-zinc-950">
+    <div className="flex h-dvh min-h-0 w-full min-w-0 overflow-hidden bg-white dark:bg-zinc-950">
       {/* Sidebar */}
       <ChatHistory
         currentSessionId={sessionId}
@@ -115,10 +115,10 @@ export default function Home() {
       />
 
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col h-full">
+      <div className="flex min-w-0 flex-1 flex-col">
         {/* Header */}
         <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 md:px-6 py-3">
-          <div className="max-w-3xl mx-auto flex items-center gap-3">
+          <div className="mx-auto flex w-full max-w-6xl items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white text-sm font-bold">
               P
             </div>
@@ -135,7 +135,7 @@ export default function Home() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-6">
-          <div className="max-w-3xl mx-auto">
+          <div className="mx-auto w-full max-w-6xl">
             {messages.length === 0 && !loading && (
               <div className="flex flex-col items-center justify-center h-full text-center py-20">
                 <div className="w-16 h-16 rounded-2xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-4">

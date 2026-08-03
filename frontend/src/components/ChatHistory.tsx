@@ -66,10 +66,9 @@ export default function ChatHistory({
 
       {/* Sidebar */}
       <aside
-        className={`fixed md:relative z-40 h-full bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-700 flex flex-col transition-transform duration-200 ${
+        className={`fixed md:relative z-40 h-full w-[min(260px,85vw)] shrink-0 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-700 flex flex-col transition-transform duration-200 ${
           open ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
-        style={{ width: "260px" }}
       >
         <div className="p-3 border-b border-zinc-200 dark:border-zinc-700">
           <button

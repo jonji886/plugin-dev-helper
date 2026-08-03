@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  backend:
+    build: .
+    container_name: kujiale-backend
+    ports:
+      - "8000:8000"
+    env_file: .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    build:
+      # context 相对本文件（deploy/），指向项目根目录的前端源码
+      context: ../frontend
+      # dockerfile 相对 context，显式指向独立维护的前端 Dockerfile，
+      # 避免同步 frontend 源码目录时误删/依赖其中的 Dockerfile
+      dockerfile: ../deploy/frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://124.223.217.62:8000}
+    container_name: kujiale-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
