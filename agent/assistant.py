@@ -24,7 +24,6 @@ import operator
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
 from langchain_openai import ChatOpenAI
-from langchain.callbacks.base import BaseCallbackHandler
 
 from vector_store import VectorStore
 
@@ -231,8 +230,13 @@ class Retriever:
 class GraphExpander:
     """依赖图展开节点"""
 
-    def __init__(self, graph_path: str = "data/graph/dependency_graph.json"):
+    def __init__(
+        self,
+        graph_path: str = "data/graph/dependency_graph.json",
+        knowledge_dir: str = "data/knowledge",
+    ):
         self.graph_path = graph_path
+        self.knowledge_dir = Path(knowledge_dir)
         self.graph_data = self._load_graph()
 
     def _load_graph(self) -> dict:
@@ -267,10 +271,9 @@ class GraphExpander:
                 context_parts.append(f"## {doc_id}\n{content[:2000]}")
 
         # 尝试读取完整的知识库文档
-        knowledge_dir = Path("data/knowledge")
         for sym_id in expanded_ids:
             safe_name = sym_id.replace(".", "_").replace("/", "_")
-            md_file = knowledge_dir / f"{safe_name}.md"
+            md_file = self.knowledge_dir / f"{safe_name}.md"
             if md_file.exists() and sym_id not in [d.get("id") or d.get("metadata", {}).get("id", "") for d in docs]:
                 content = md_file.read_text(encoding="utf-8")
                 context_parts.append(f"## {sym_id}\n{content}")
@@ -340,16 +343,23 @@ class AnswerGenerator:
 
 # ========== Agent 构建 ==========
 
-def build_agent(top_k: int = 5, timeout_seconds: float = 30.0, max_retries: int = 2):
+def build_agent(
+    top_k: int = 5,
+    timeout_seconds: float = 30.0,
+    max_retries: int = 2,
+    chroma_path: str = "data/chroma",
+    knowledge_path: str = "data/knowledge",
+    graph_path: str = "data/graph/dependency_graph.json",
+):
     """构建 LangGraph Agent"""
     llm = get_llm(timeout_seconds=timeout_seconds, max_retries=max_retries)
-    vector_store = VectorStore()
+    vector_store = VectorStore(persist_dir=chroma_path, knowledge_dir=knowledge_path)
 
     # 创建节点实例
     intent_router = IntentRouter(llm)
     query_rewrite = QueryRewrite(llm)
     retriever = Retriever(vector_store, top_k=top_k)
-    graph_expander = GraphExpander()
+    graph_expander = GraphExpander(graph_path=graph_path, knowledge_dir=knowledge_path)
     answer_generator = AnswerGenerator(llm)
 
     # 构建图
@@ -494,9 +504,19 @@ class AgentRunner:
     """Agent 运行器"""
 
     def __init__(self, database_path: Optional[str] = None, top_k: int = 5,
-                 timeout_seconds: float = 30.0, max_retries: int = 2):
-        self.agent = build_agent(top_k=top_k, timeout_seconds=timeout_seconds, max_retries=max_retries)
+                 timeout_seconds: float = 30.0, max_retries: int = 2,
+                 chroma_path: str = "data/chroma", knowledge_path: str = "data/knowledge",
+                 graph_path: str = "data/graph/dependency_graph.json"):
+        self.agent = build_agent(
+            top_k=top_k,
+            timeout_seconds=timeout_seconds,
+            max_retries=max_retries,
+            chroma_path=chroma_path,
+            knowledge_path=knowledge_path,
+            graph_path=graph_path,
+        )
         self.session_manager = SessionManager(database_path)
+        self.knowledge_index_path = Path(knowledge_path) / "_index.json"
 
     def chat(self, query: str, session_id: Optional[str] = None,
              request_id: Optional[str] = None) -> dict:
@@ -547,7 +567,7 @@ class AgentRunner:
             print(traceback.format_exc())
             answer = f"抱歉，处理您的问题时出现错误，请稍后重试。错误信息: {str(e)}"
 
-        citations = build_citations(result.get("retrieved_docs", []))
+        citations = build_citations(result.get("retrieved_docs", []), self.knowledge_index_path)
         self.session_manager.add_message(
             session_id, "assistant", answer, citations=citations, request_id=request_id
         )

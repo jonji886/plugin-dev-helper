@@ -21,6 +21,11 @@ async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Pro
       throw new Error(`API error ${res.status}: ${err}`);
     }
 
+    // 反馈接口按 HTTP 语义返回 204 No Content，不能再尝试解析 JSON。
+    if (res.status === 204 || res.headers.get("content-length") === "0") {
+      return undefined as T;
+    }
+
     return res.json() as Promise<T>;
   } catch (error) {
     throw new Error(formatFetchError(error));

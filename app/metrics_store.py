@@ -8,6 +8,8 @@ from statistics import quantiles
 
 
 class MetricsStore:
+    METRICS_WINDOW_SIZE = 1000
+
     def __init__(self, database_path: Path):
         self.database_path = database_path
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
@@ -45,6 +47,14 @@ class MetricsStore:
                     FOREIGN KEY (request_id) REFERENCES request_logs(request_id)
                 );
             """)
+            # 旧版本允许重复反馈；保留每个请求最近一次选择后再加唯一约束。
+            connection.execute("""
+                DELETE FROM feedback
+                WHERE id NOT IN (SELECT MAX(id) FROM feedback GROUP BY request_id)
+            """)
+            connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_request_id ON feedback(request_id)"
+            )
 
     def record_request(self, record: dict) -> None:
         with self._connect() as connection:
@@ -68,37 +78,54 @@ class MetricsStore:
             ).fetchone()
             if not exists:
                 return False
-            connection.execute(
-                "INSERT INTO feedback (request_id, helpful, comment) VALUES (?, ?, ?)",
-                (request_id, int(helpful), comment),
-            )
+            connection.execute("""
+                INSERT INTO feedback (request_id, helpful, comment) VALUES (?, ?, ?)
+                ON CONFLICT(request_id) DO UPDATE SET
+                    helpful = excluded.helpful,
+                    comment = excluded.comment,
+                    created_at = CURRENT_TIMESTAMP
+            """, (request_id, int(helpful), comment))
         return True
 
     def metrics(self) -> dict:
         with self._connect() as connection:
-            summary = connection.execute("""
+            summary = connection.execute(f"""
+                WITH recent_requests AS (
+                    SELECT rowid, * FROM request_logs
+                    ORDER BY created_at DESC, rowid DESC
+                    LIMIT {self.METRICS_WINDOW_SIZE}
+                )
                 SELECT
                     COUNT(*) AS total_requests,
                     COALESCE(SUM(status = 'success'), 0) AS successful_requests,
                     COALESCE(AVG(retrieval_ms), 0) AS avg_retrieval_ms,
                     COALESCE(AVG(llm_ms), 0) AS avg_llm_ms,
                     COALESCE(AVG(citation_count > 0), 0) AS citation_rate
-                FROM request_logs
+                FROM recent_requests
             """).fetchone()
             latencies = [
-                row["total_ms"] for row in connection.execute(
-                    "SELECT total_ms FROM request_logs ORDER BY created_at DESC LIMIT 1000"
-                )
+                row["total_ms"] for row in connection.execute(f"""
+                    SELECT total_ms FROM request_logs
+                    ORDER BY created_at DESC, rowid DESC
+                    LIMIT {self.METRICS_WINDOW_SIZE}
+                """)
             ]
-            feedback = connection.execute("""
+            feedback = connection.execute(f"""
+                WITH recent_requests AS (
+                    SELECT request_id FROM request_logs
+                    ORDER BY created_at DESC, rowid DESC
+                    LIMIT {self.METRICS_WINDOW_SIZE}
+                )
                 SELECT COUNT(*) AS total, COALESCE(SUM(helpful = 1), 0) AS helpful
                 FROM feedback
+                WHERE request_id IN (SELECT request_id FROM recent_requests)
             """).fetchone()
 
         p50, p95 = self._percentiles(latencies)
         total_requests = summary["total_requests"]
         return {
             "total_requests": total_requests,
+            "window_limit": self.METRICS_WINDOW_SIZE,
             "success_rate": round(summary["successful_requests"] / total_requests, 4) if total_requests else 0.0,
             "p50_latency_ms": p50,
             "p95_latency_ms": p95,

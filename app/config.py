@@ -30,6 +30,7 @@ class Settings:
     database_path: Path
     chroma_path: Path
     knowledge_path: Path
+    graph_path: Path
     retrieval_top_k: int
     llm_timeout_seconds: float
     llm_max_retries: int
@@ -50,6 +51,7 @@ def get_settings() -> Settings:
         database_path=Path(os.getenv("APP_DATABASE_PATH", str(data_dir / "app.sqlite3"))),
         chroma_path=Path(os.getenv("CHROMA_PATH", str(data_dir / "chroma"))),
         knowledge_path=Path(os.getenv("KNOWLEDGE_PATH", str(data_dir / "knowledge"))),
+        graph_path=Path(os.getenv("GRAPH_PATH", str(data_dir / "graph" / "dependency_graph.json"))),
         retrieval_top_k=_positive_int("RETRIEVAL_TOP_K", 5),
         llm_timeout_seconds=_positive_float("LLM_TIMEOUT_SECONDS", 30.0),
         llm_max_retries=_positive_int("LLM_MAX_RETRIES", 2),

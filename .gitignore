@@ -21,6 +21,9 @@ data/chroma/*
 data/*.sqlite3
 data/*.sqlite3-*
 
+# 评测脚本运行时产物（基线指标请以 CI 日志或独立报告为准）
+eval/eval_results.json
+
 # Environment
 .env
 .env.local

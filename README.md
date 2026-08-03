@@ -192,6 +192,7 @@ cd frontend && npm install
 
 > 后端运行与测试命令均使用 `.venv/bin/python`，避免系统 `python` 指向错误版本。
 > 项目包含多个顶级 Python 包，已在 `pyproject.toml` 中显式声明；请保留 `-e ".[dev]"` 的安装方式，以便本地与 GitHub Actions 使用相同的依赖安装路径。
+> 项目通过 `langchain-openai` 获取 `langchain_core`，只使用其公开消息接口；无需单独安装通用 `langchain` 或 `langchain-community` 包。
 
 ### 2. 配置环境变量
 
@@ -328,7 +329,7 @@ cd frontend && npm run dev
 | POST | `/api/chat` | 对话接口 |
 | GET | `/api/chat/history` | 获取会话历史 |
 | DELETE | `/api/chat/history` | 按会话或全部清除历史 |
-| POST | `/api/chat/feedback` | 提交回答是否有帮助的反馈 |
+| POST | `/api/chat/feedback` | 提交回答是否有帮助的反馈（成功返回 `204 No Content`） |
 | GET | `/api/ready` | 检查向量库、知识库与模型配置状态 |
 | GET | `/api/metrics` | 查看请求延迟、成功率、引用率和反馈汇总 |
 
@@ -370,7 +371,9 @@ cd frontend && npm run dev
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-测试覆盖 SDK 分块解析行号、RAG 文档增量同步、结构化来源引用，以及聊天 API 会话清理。
+测试覆盖 SDK 分块解析行号、RAG 文档增量同步、结构化来源引用、运行路径注入，以及聊天 API、SQLite 会话、指标和反馈更新。
+
+完整答案评测会在本地生成 `eval/eval_results.json`，该文件不提交到仓库，避免过期结果被误认为当前基线；检索质量以 CI 的实时 Recall@5 门禁结果为准。
 
 仅验证检索质量、不调用 LLM：
 
@@ -382,26 +385,16 @@ cd frontend && npm run dev
 
 - 每次执行 `scripts/run_pipeline.py` 都会统一构建 SDK 与 `docs/rag/` 文档，避免其中一类知识遗漏到向量索引。
 - `/api/chat` 会返回结构化 `citations`（来源、SDK 版本和行号）；前端会在回答下方展示该信息。
-- 会话当前仍保存在进程内存中，服务重启后会丢失，且不适合多实例部署。这是后续持久化会话阶段的范围。
 - 默认只允许 `http://localhost:3000` 跨域访问；部署时通过 `FRONTEND_ORIGINS` 明确配置前端域名。
 
 ### P1 运行与反馈闭环
 
 - 会话和消息默认持久化到 `data/app.sqlite3`，服务重启后仍可加载历史；可通过 `APP_DATABASE_PATH` 改写位置。
-- 每次回答都会生成 request ID，并记录检索耗时、模型耗时、总耗时、引用数量与处理状态。`GET /api/metrics` 返回最近 1,000 条请求的 P50/P95 延迟、成功率、引用率和用户反馈率。
-- 前端回答下方可提交“有帮助 / 无帮助”；反馈与对应 request ID 关联，便于后续分析失败样例。
+- 每次回答都会生成 request ID，并记录检索耗时、模型耗时、总耗时、引用数量与处理状态。`GET /api/metrics` 的全部聚合指标均基于最近 1,000 条请求。
+- 前端回答下方可提交“有帮助 / 无帮助”；反馈与对应 request ID 关联，同一回答以最后一次选择为准，便于后续分析失败样例。
 - LLM 超时、重试次数、检索 Top-K 都可以通过 `.env` 中的 `LLM_TIMEOUT_SECONDS`、`LLM_MAX_RETRIES` 和 `RETRIEVAL_TOP_K` 调整。
 - GitHub Actions 会在推送和 PR 时执行后端单元测试、前端 lint 与生产构建。
 
-## FDE 案例：修复“保存设计方案”接口不可发现
-
-**问题**：开发者以自然语言询问“保存设计方案接口是哪个”，但向量检索未能召回已存在的 `IDP.Design.save()`，导致助手错误地回复“没有找到”。
-
-**定位与交付**：检查 SDK 源码、知识单元和检索候选后，确认 `export function` 外层 JSDoc 没有被解析，知识库失去“保存方案”这一中文语义。修复解析器后，将 JSDoc 写入知识单元，并将语义检索与 API 路径、别名、描述的词法检索合并重排。
-
-**结果**：`IDP.Design.save` 对该问题从未进入 Top 10 变为 Top 1；24 条回归集的 Recall@5 从 69.57% 提升到 91.67%。该样例同时被加入评测集，CI 会重建索引并执行检索质量门禁。
-
-**闭环**：每次回答记录 request ID、检索/模型延迟、引用与用户反馈；低评价样本可用于扩充评测集、完善别名或修复文档解析。
 
 ## 更新日志
 
