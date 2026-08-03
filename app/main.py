@@ -60,6 +60,9 @@ def get_agent() -> AgentRunner:
             top_k=settings.retrieval_top_k,
             timeout_seconds=settings.llm_timeout_seconds,
             max_retries=settings.llm_max_retries,
+            chroma_path=str(settings.chroma_path),
+            knowledge_path=str(settings.knowledge_path),
+            graph_path=str(settings.graph_path),
         )
     return agent_runner
 
@@ -127,7 +130,10 @@ async def ready():
     """检查知识库和模型配置是否具备处理请求的条件。"""
     try:
         from vector_store import VectorStore
-        vector_count = VectorStore(persist_dir=str(settings.chroma_path)).count()
+        vector_count = VectorStore(
+            persist_dir=str(settings.chroma_path),
+            knowledge_dir=str(settings.knowledge_path),
+        ).count()
         index_path = settings.knowledge_path / "_index.json"
         knowledge_count = len(json.loads(index_path.read_text(encoding="utf-8")))
     except Exception as error:
@@ -170,9 +176,11 @@ async def chat(request: ChatRequest):
     except Exception as error:
         status = "error"
         error_message = str(error)
+        total_ms = (perf_counter() - started_at) * 1000
         metrics_store.record_request({
             "request_id": request_id, "session_id": request.session_id or "",
             "query": request.query.strip(), "status": status, "error_message": error_message,
+            "total_ms": total_ms,
         })
         raise HTTPException(status_code=500, detail="处理问题时发生内部错误") from error
 

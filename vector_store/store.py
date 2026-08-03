@@ -22,10 +22,16 @@ from chromadb.config import Settings
 class VectorStore:
     """SDK 知识库向量存储"""
 
-    def __init__(self, persist_dir: str = "data/chroma", collection_name: str = "sdk_knowledge"):
+    def __init__(
+        self,
+        persist_dir: str = "data/chroma",
+        collection_name: str = "sdk_knowledge",
+        knowledge_dir: str = "data/knowledge",
+    ):
         self.persist_dir = Path(persist_dir)
         self.persist_dir.mkdir(parents=True, exist_ok=True)
         self.collection_name = collection_name
+        self.knowledge_dir = Path(knowledge_dir)
 
         # 初始化 Chroma client
         self.client = chromadb.PersistentClient(
@@ -58,9 +64,9 @@ class VectorStore:
                 raise
         return self._embedding_model
 
-    def build_index(self, knowledge_index: list[dict], knowledge_dir: str = "data/knowledge"):
+    def build_index(self, knowledge_index: list[dict], knowledge_dir: Optional[str] = None):
         """从知识库索引构建向量索引"""
-        knowledge_dir = Path(knowledge_dir)
+        knowledge_dir = Path(knowledge_dir) if knowledge_dir else self.knowledge_dir
 
         # 先删除旧集合重新构建
         self.delete_collection()
@@ -245,16 +251,17 @@ class VectorStore:
         matches = sum(1 for bigram in bigrams if bigram in chinese_searchable)
         return score + matches
 
-    def _load_knowledge_index(self, knowledge_dir: str = "data/knowledge") -> list[dict]:
+    def _load_knowledge_index(self, knowledge_dir: Optional[str] = None) -> list[dict]:
         if self._knowledge_index is None:
-            index_path = Path(knowledge_dir) / "_index.json"
+            index_path = (Path(knowledge_dir) if knowledge_dir else self.knowledge_dir) / "_index.json"
             try:
                 self._knowledge_index = json.loads(index_path.read_text(encoding="utf-8"))
             except (FileNotFoundError, json.JSONDecodeError):
                 self._knowledge_index = []
         return self._knowledge_index
 
-    def _keyword_search(self, query: str, top_k: int, knowledge_dir: str = "data/knowledge") -> list[dict]:
+    def _keyword_search(self, query: str, top_k: int, knowledge_dir: Optional[str] = None) -> list[dict]:
+        knowledge_dir = Path(knowledge_dir) if knowledge_dir else self.knowledge_dir
         entries = self._load_knowledge_index(knowledge_dir)
         scored_entries = [
             (self.keyword_score(query, entry), entry)
@@ -265,7 +272,7 @@ class VectorStore:
 
         results = []
         for score, entry in scored_entries[:top_k]:
-            md_path = Path(knowledge_dir) / entry.get("mdFile", "")
+            md_path = knowledge_dir / entry.get("mdFile", "")
             if not md_path.exists():
                 continue
             results.append({

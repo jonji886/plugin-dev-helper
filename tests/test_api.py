@@ -75,6 +75,7 @@ class ApiTests(unittest.TestCase):
                 self.assertEqual(chat_response.status_code, 200)
                 self.assertEqual(chat_response.json()["citations"][0]["id"], "IDP.Miniapp.exit")
                 self.assertEqual(feedback_response.status_code, 204)
+                self.assertEqual(feedback_response.content, b"")
                 self.assertEqual(metrics_response.json()["helpful_rate"], 1.0)
                 self.assertEqual(clear_response.status_code, 200)
                 self.assertEqual(main.agent_runner.session_manager.sessions, {})
