@@ -18,6 +18,7 @@
 - 独立检索质量门禁脚本，CI 重建索引后校验 Recall@5 ≥ 85%
 
 ### Fixed
+- 移除未使用且已从新版 LangChain 删除的 `langchain.callbacks.base` 导入及冗余的 `langchain`、`langchain-community` 依赖，修复 Python 3.11 CI 单测失败
 - 修复前端将反馈接口的 `204 No Content` 当作 JSON 解析，点击“有帮助 / 无帮助”时报错的问题
 - 修复 `CHROMA_PATH`、`KNOWLEDGE_PATH` 和 `GRAPH_PATH` 未传入 Agent 检索与图扩展链路的问题
 - 统一 `/api/metrics` 的统计窗口为最近 1,000 条请求，并将同一回答的重复反馈改为更新最新选择

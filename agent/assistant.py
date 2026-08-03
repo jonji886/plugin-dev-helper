@@ -24,7 +24,6 @@ import operator
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
 from langchain_openai import ChatOpenAI
-from langchain.callbacks.base import BaseCallbackHandler
 
 from vector_store import VectorStore
 
