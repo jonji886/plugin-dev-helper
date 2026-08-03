@@ -8,6 +8,8 @@
 2. 构建知识库：`.venv/bin/python scripts/run_pipeline.py`
 3. 启动后端和前端：先执行 `.venv/bin/uvicorn app.main:app --reload --port 8000`，再执行 `cd frontend && npm run dev`
 
+需要部署到服务器外网访问时，直接使用 [Docker 部署](#docker-部署) 章节的方案，无需手动安装依赖。
+
 ## 项目简介
 
 插件开发 AI Agent 是一个面向设计平台开放平台插件开发者的智能问答助手。它能自动回答关于 SDK、API 和插件开发的问题，支持多轮对话、代码示例生成、参数说明和来源引用，帮助开发者减少等待人工回复的时间，降低技术支持成本。
@@ -156,9 +158,14 @@ flowchart TD
 │   └── system.md           # Agent 系统提示词
 ├── scripts/                # 工具脚本
 │   └── run_pipeline.py     # 端到端流水线
+├── deploy/                 # Docker 部署配置
+│   ├── Dockerfile          # 后端镜像（FastAPI + 知识库）
+│   ├── docker-compose.yml  # 双容器编排
+│   └── frontend/           # 前端镜像（Next.js）
 ├── eval/                   # 自动评测
 │   ├── run_eval.py         # 评测脚本
-│   └── test_data.json      # 测试数据集
+│   ├── test_data.json      # 基础测试集
+│   └── regression_cases.json # 人工确认的失败案例回归集
 ├── data/                   # 数据目录
 │   ├── chroma/             # Chroma 向量数据库
 │   ├── knowledge/          # 知识库（Markdown + JSON）
@@ -193,6 +200,8 @@ cd frontend && npm install
 > 后端运行与测试命令均使用 `.venv/bin/python`，避免系统 `python` 指向错误版本。
 > 项目包含多个顶级 Python 包，已在 `pyproject.toml` 中显式声明；请保留 `-e ".[dev]"` 的安装方式，以便本地与 GitHub Actions 使用相同的依赖安装路径。
 > 项目通过 `langchain-openai` 获取 `langchain_core`，只使用其公开消息接口；无需单独安装通用 `langchain` 或 `langchain-community` 包。
+
+前端布局采用全宽可伸缩容器，主内容区会随浏览器窗口自适应；消息正文保留最大阅读宽度，避免超宽屏下单行文字过长。
 
 ### 2. 配置环境变量
 
@@ -312,6 +321,108 @@ cd frontend && npm run dev
 - **回答质量很差或提示没有知识**：先确认是否已执行 `.venv/bin/python scripts/run_pipeline.py` 重新构建知识库。
 - **前端显示接口错误**：先确认后端 `http://localhost:8000/api/health` 是否正常，再检查前端是否仍在访问默认后端地址。
 
+## Docker 部署
+
+将后端（FastAPI）与前端（Next.js）分别打包为容器，通过 `deploy/docker-compose.yml` 一键编排。适合部署到腾讯云轻量服务器等已有 Docker 环境的机器，部署完成后可通过外网访问前端页面。
+
+### 容器架构
+
+| 服务 | 镜像 | 端口 | 说明 |
+|------|------|------|------|
+| `kujiale-backend` | `deploy/Dockerfile` | 8000 | FastAPI 后端，内嵌已构建的知识库与 embedding 模型缓存 |
+| `kujiale-frontend` | `deploy/frontend/Dockerfile` | 3000 | Next.js 生产构建，构建时注入后端 API 地址 |
+
+### 部署前置条件
+
+- 服务器已安装 Docker 与 Docker Compose
+- 可公网访问的服务器 IP（下文示例为 `124.223.217.62`）
+- DeepSeek API Key
+- 本地已构建好知识库：`data/` 下含 `chroma/`、`knowledge/`、`graph/`
+- embedding 模型离线缓存 `hf_cache/`（`all-MiniLM-L6-v2`，可从本地 `~/.cache/huggingface` 拷贝），Dockerfile 会将其拷入镜像，避免运行期联网下载
+
+### 部署步骤
+
+#### 1. 准备部署包
+
+在项目根目录打包，排除虚拟环境、node_modules 等不必要内容：
+
+```bash
+mkdir -p /tmp/kujiale-deploy
+rsync -a \
+  --exclude '.venv' --exclude 'node_modules' --exclude '.git' \
+  --exclude 'frontend/.npm-cache' --exclude 'data/app.sqlite3' \
+  ./ /tmp/kujiale-deploy/
+```
+
+部署包必须包含：
+
+- `deploy/`（Dockerfile、docker-compose.yml）
+- `data/`（已构建的知识库，`scripts/run_pipeline.py` 产物）
+- `hf_cache/`（embedding 模型离线缓存）
+- `.env`（环境变量，见下一步）
+
+#### 2. 配置 `.env`
+
+`.env` 需放在 `deploy/` 目录（与 `docker-compose.yml` 同级），Compose 会读取它做变量替换，并将其注入后端容器：
+
+```env
+DEEPSEEK_API_KEY=your_api_key_here
+NEXT_PUBLIC_API_URL=http://124.223.217.62:8000
+FRONTEND_ORIGINS=http://124.223.217.62:3000
+RETRIEVAL_TOP_K=5
+LLM_TIMEOUT_SECONDS=30
+LLM_MAX_RETRIES=2
+HF_HUB_OFFLINE=1
+TRANSFORMERS_OFFLINE=1
+```
+
+> 注意：本地开发用的 `.env` 是 `export KEY=value` 格式，部署前需去掉 `export ` 前缀；`NEXT_PUBLIC_API_URL` 需改为你服务器的实际公网 IP。
+
+#### 3. 上传到服务器
+
+```bash
+scp -r /tmp/kujiale-deploy root@124.223.217.62:/root/
+```
+
+#### 4. 构建并启动
+
+```bash
+cd /root/kujiale-deploy
+docker compose up -d --build
+```
+
+#### 5. 开放防火墙端口
+
+在腾讯云轻量控制台「防火墙」中放行：
+
+- TCP `3000`（前端页面）
+- TCP `8000`（后端 API）
+
+#### 6. 验证
+
+```bash
+# 容器内健康检查
+docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
+
+# 外网访问前端与后端
+curl -I http://124.223.217.62:3000
+curl http://124.223.217.62:8000/api/health
+```
+
+浏览器打开 `http://124.223.217.62:3000` 即可使用。
+
+### 部署注意事项（踩坑记录）
+
+- **国内网络慢**：`deploy/Dockerfile` 已内置清华 Debian / PyPI 镜像源；若换到其他网络环境构建失败，优先检查 Docker 网络与镜像源可达性。
+- **torch 必须用 CPU 版**：服务器无 GPU，Dockerfile 单独安装 CPU 版 torch（`--index-url https://download.pytorch.org/whl/cpu`），避免拉取数 GB 的 CUDA 版本。
+- **`--no-build-isolation`**：预装 setuptools/wheel 并禁用 PEP 517 隔离构建，避免隔离环境重复下载构建依赖导致失败。
+- **构建耗时与超时**：首次构建需拉取基础镜像并编译 tree-sitter / numpy 等，耗时可能超过 5 分钟。若部署平台有命令超时限制，改用 `nohup docker compose build > build.log 2>&1 &` 后台构建，再轮询日志确认完成。
+- **`NEXT_PUBLIC_API_URL` 是构建期变量**：修改后端地址后需重建前端镜像（`docker compose build frontend`），仅重启容器不生效。
+- **跨域配置**：`FRONTEND_ORIGINS` 必须与前端实际访问地址一致，否则浏览器跨域请求会被拦截。
+- **更换 DeepSeek Key**：修改 `deploy/.env` 后执行 `docker compose up -d backend` 重启后端容器。
+- **知识库更新**：`data/` 已 COPY 进镜像，更新本地 `data/` 后需重新打包并重建后端镜像，否则容器继续使用镜像内旧数据。
+- **会话历史**：`data/app.sqlite3` 未挂载数据卷，容器重建后会话历史会丢失；如需持久化，请给 backend 增加 volume 挂载。
+
 ## LangGraph Agent 节点
 
 1. **Intent Router** — 识别问题类型（API / SDK / 参数 / 代码 / 其他）
@@ -332,6 +443,7 @@ cd frontend && npm run dev
 | POST | `/api/chat/feedback` | 提交回答是否有帮助的反馈（成功返回 `204 No Content`） |
 | GET | `/api/ready` | 检查向量库、知识库与模型配置状态 |
 | GET | `/api/metrics` | 查看请求延迟、成功率、引用率和反馈汇总 |
+| GET | `/api/metrics/failures` | 查询需要人工复核的失败案例候选 |
 
 `POST /api/chat` 的响应除 `answer` 外，还包含后端根据实际检索结果生成的来源引用：
 
@@ -362,8 +474,10 @@ cd frontend && npm run dev
 
 评测指标：
 - **Recall@1/3/5**：检索召回率
-- **Answer Correctness**：答案正确性
+- **Answer Correctness**：按案例关键词命中率或拒答行为计算，默认要求关键词命中率不低于 50%
 - **Citation Validity**：来源是否来自实际检索到的知识库条目
+- **Avg Keyword Ratio**：所有案例的平均关键词命中率，用于观察质量变化而不只看是否过门禁
+- **Avg Response Time**：端到端平均响应时间
 
 ### 测试
 
@@ -374,6 +488,16 @@ cd frontend && npm run dev
 测试覆盖 SDK 分块解析行号、RAG 文档增量同步、结构化来源引用、运行路径注入，以及聊天 API、SQLite 会话、指标和反馈更新。
 
 完整答案评测会在本地生成 `eval/eval_results.json`，该文件不提交到仓库，避免过期结果被误认为当前基线；检索质量以 CI 的实时 Recall@5 门禁结果为准。
+
+#### 失败案例闭环
+
+服务会把请求延迟、检索数量、引用数量和用户反馈写入 SQLite。可以导出需要人工复核的请求：
+
+```bash
+python scripts/export_failure_cases.py --database data/app.sqlite3 --output eval/failure_candidates.jsonl
+```
+
+候选案例包括请求 ID、问题、失败原因和用户反馈，但不会自动把用户反馈当作标准答案。人工补齐 `expected_answer`、`expected_keywords` 和 `reference_docs` 后，将确认的案例合并到 `eval/regression_cases.json`；后续评测会自动加载基础集和回归集。运行中的候选也可以通过 `GET /api/metrics/failures?limit=50` 查询。
 
 仅验证检索质量、不调用 LLM：
 

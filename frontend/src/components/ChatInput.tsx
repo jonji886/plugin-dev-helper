@@ -36,7 +36,7 @@ export default function ChatInput({ onSend, disabled }: Props) {
 
   return (
     <div className="border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">
-      <div className="max-w-3xl mx-auto flex gap-2 items-end">
+      <div className="mx-auto flex w-full max-w-6xl items-end gap-2">
         <textarea
           ref={textareaRef}
           value={input}

@@ -7,6 +7,8 @@
 3. 来源有效率: Citation Validity（引用必须存在于知识库索引）
 """
 
+from __future__ import annotations
+
 import json
 import sys
 import os
@@ -17,10 +19,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from vector_store import VectorStore
 from agent import AgentRunner
+from eval.scoring import score_answer
 
 # ========== 评测配置 ==========
 
 TEST_DATA_PATH = Path(__file__).parent / "test_data.json"
+REGRESSION_DATA_PATH = Path(__file__).parent / "regression_cases.json"
 TOP_K_VALUES = [1, 3, 5]
 REQUIRED_RECALL_AT_5 = 0.85
 REQUIRED_CORRECTNESS = 0.80
@@ -28,9 +32,17 @@ REQUIRED_CITATION_VALIDITY = 0.90
 
 
 def load_test_data() -> list[dict]:
-    """加载测试数据集"""
+    """加载基础测试集和人工确认后的回归案例。"""
     with open(TEST_DATA_PATH, encoding="utf-8") as f:
-        return json.load(f)
+        cases = json.load(f)
+
+    if REGRESSION_DATA_PATH.exists():
+        with open(REGRESSION_DATA_PATH, encoding="utf-8") as f:
+            regression_cases = json.load(f)
+        if not isinstance(regression_cases, list):
+            raise ValueError(f"{REGRESSION_DATA_PATH} 必须是 JSON 数组")
+        cases.extend(regression_cases)
+    return cases
 
 
 def evaluate_retrieval(vs: VectorStore, test_data: list[dict]) -> dict:
@@ -84,7 +96,11 @@ def evaluate_retrieval(vs: VectorStore, test_data: list[dict]) -> dict:
     return metrics
 
 
-def evaluate_answer(agent: AgentRunner, test_data: list[dict]) -> dict:
+def evaluate_answer(
+    agent: AgentRunner,
+    test_data: list[dict],
+    retrieval_metrics: dict | None = None,
+) -> dict:
     """评测答案质量"""
     print("\n" + "=" * 60)
     print("评测: 答案质量")
@@ -109,7 +125,6 @@ def evaluate_answer(agent: AgentRunner, test_data: list[dict]) -> dict:
     for i, item in enumerate(test_data):
         qid = item["id"]
         question = item["question"]
-        expected = item["expected_answer"]
         reference_docs = item["reference_docs"]
 
         print(f"\n  [{i+1}/{total}] {qid}: {question[:50]}...")
@@ -130,23 +145,23 @@ def evaluate_answer(agent: AgentRunner, test_data: list[dict]) -> dict:
         if answer:
             print(f"    答案预览: {answer[:100]}...")
 
-        # 1. 答案正确性: 检查是否包含预期关键词
-        keywords = expected.split("，")
-        keyword_hits = sum(1 for kw in keywords if kw.strip() in answer)
-        keyword_ratio = keyword_hits / max(len(keywords), 1)
-        is_correct = keyword_ratio >= 0.3  # 至少30%的关键词命中
+        # 1. 答案正确性：按案例配置的关键词或拒答行为评分。
+        is_correct, keyword_ratio = score_answer(answer, item)
 
         if is_correct:
             correct_count += 1
 
         # 2. 来源有效率：引用必须是 Agent 根据实际检索结果从知识库索引装配的。
         citations = result.get("citations", [])
-        citation_valid = bool(citations) and all(
-            (entry := index_by_id.get(citation.get("id")))
-            and citation.get("source") == entry.get("source", "")
-            and citation.get("sdk_version", "") == entry.get("sdkVersion", "")
-            for citation in citations
-        )
+        if item.get("expected_behavior") == "abstain":
+            citation_valid = not citations
+        else:
+            citation_valid = bool(citations) and all(
+                (entry := index_by_id.get(citation.get("id")))
+                and citation.get("source") == entry.get("source", "")
+                and citation.get("sdk_version", "") == entry.get("sdkVersion", "")
+                for citation in citations
+            )
         if citation_valid:
             citation_valid_count += 1
 
@@ -178,17 +193,20 @@ def evaluate_answer(agent: AgentRunner, test_data: list[dict]) -> dict:
     citation_validity = citation_valid_count / total
     reference_cited_rate = reference_cited_count / total
     avg_time = total_time / total
+    avg_keyword_ratio = sum(item["keyword_ratio"] for item in results) / total
 
     metrics = {
         "Answer_Correctness": round(correctness, 4),
         "Citation_Validity": round(citation_validity, 4),
         "Reference_Cited_Rate": round(reference_cited_rate, 4),
+        "Avg_Keyword_Ratio": round(avg_keyword_ratio, 4),
         "Avg_Response_Time": round(avg_time, 1),
     }
 
     print(f"\n  答案正确率: {correct_count}/{total} = {correctness:.2%}")
     print(f"  来源有效率: {citation_valid_count}/{total} = {citation_validity:.2%}")
     print(f"  参考文档命中率: {reference_cited_count}/{total} = {reference_cited_rate:.2%}")
+    print(f"  平均关键词命中率: {avg_keyword_ratio:.2%}")
     print(f"  平均响应时间: {avg_time:.1f}s")
 
     correctness_ok = correctness >= REQUIRED_CORRECTNESS
@@ -204,11 +222,12 @@ def evaluate_answer(agent: AgentRunner, test_data: list[dict]) -> dict:
     output_path = Path(__file__).parent / "eval_results.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump({
-            "retrieval": {"recall_at_5": metrics.get("pass", False)},
+            "retrieval": {"recall_at_5": (retrieval_metrics or {}).get("Recall@5", 0.0)},
             "answer": {
                 "correctness": correctness,
                 "citation_validity": citation_validity,
                 "reference_cited_rate": reference_cited_rate,
+                "avg_keyword_ratio": avg_keyword_ratio,
             },
             "details": results,
         }, f, ensure_ascii=False, indent=2)
@@ -238,7 +257,7 @@ def main():
     # 评测 2: 答案质量
     print("\n初始化 Agent Runner...")
     agent = AgentRunner()
-    answer_metrics = evaluate_answer(agent, test_data)
+    answer_metrics = evaluate_answer(agent, test_data, retrieval_metrics)
 
     # 最终汇总
     print("\n" + "=" * 60)
@@ -251,6 +270,7 @@ def main():
     print(f"    Answer Correctness: {answer_metrics['Answer_Correctness']:.2%}")
     print(f"    Citation Validity: {answer_metrics['Citation_Validity']:.2%}")
     print(f"    Reference Cited Rate: {answer_metrics['Reference_Cited_Rate']:.2%}")
+    print(f"    Avg Keyword Ratio: {answer_metrics['Avg_Keyword_Ratio']:.2%}")
     print(f"    Avg Response Time: {answer_metrics['Avg_Response_Time']:.1f}s")
 
     all_pass = (

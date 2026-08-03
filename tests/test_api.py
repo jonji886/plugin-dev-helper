@@ -66,17 +66,35 @@ class ApiTests(unittest.TestCase):
                         "request_id": chat_response.json()["request_id"], "helpful": True
                     })
                     metrics_response = await client.get("/api/metrics")
+                    negative_feedback_response = await client.post("/api/chat/feedback", json={
+                        "request_id": chat_response.json()["request_id"],
+                        "helpful": False,
+                        "comment": "需要补充示例",
+                    })
+                    failures_response = await client.get("/api/metrics/failures?limit=10")
                     clear_response = await client.delete("/api/chat/history")
                     invalid_response = await client.get("/api/chat/history?session_id=invalid")
-                    return chat_response, feedback_response, metrics_response, clear_response, invalid_response
+                    return (
+                        chat_response, feedback_response, metrics_response,
+                        negative_feedback_response, failures_response,
+                        clear_response, invalid_response,
+                    )
 
             try:
-                chat_response, feedback_response, metrics_response, clear_response, invalid_response = asyncio.run(request())
+                (
+                    chat_response, feedback_response, metrics_response,
+                    negative_feedback_response, failures_response,
+                    clear_response, invalid_response,
+                ) = asyncio.run(request())
                 self.assertEqual(chat_response.status_code, 200)
                 self.assertEqual(chat_response.json()["citations"][0]["id"], "IDP.Miniapp.exit")
                 self.assertEqual(feedback_response.status_code, 204)
                 self.assertEqual(feedback_response.content, b"")
                 self.assertEqual(metrics_response.json()["helpful_rate"], 1.0)
+                self.assertEqual(negative_feedback_response.status_code, 204)
+                self.assertEqual(failures_response.status_code, 200)
+                self.assertEqual(failures_response.json()[0]["failure_reasons"], ["negative_feedback"])
+                self.assertEqual(failures_response.json()[0]["feedback_comment"], "需要补充示例")
                 self.assertEqual(clear_response.status_code, 200)
                 self.assertEqual(main.agent_runner.session_manager.sessions, {})
                 self.assertEqual(invalid_response.status_code, 400)

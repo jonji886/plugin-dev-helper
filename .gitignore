@@ -23,6 +23,10 @@ data/*.sqlite3-*
 
 # 评测脚本运行时产物（基线指标请以 CI 日志或独立报告为准）
 eval/eval_results.json
+eval/failure_candidates*.jsonl
+
+# IDE 本地数据（含集成凭据）
+.codebuddy/
 
 # Environment
 .env

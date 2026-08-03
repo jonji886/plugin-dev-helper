@@ -136,6 +136,71 @@ class MetricsStore:
             "helpful_rate": round(feedback["helpful"] / feedback["total"], 4) if feedback["total"] else 0.0,
         }
 
+    def failure_cases(self, limit: int = 100) -> list[dict]:
+        """返回需要人工复核的请求，供反馈闭环和回归集整理使用。"""
+        if limit <= 0 or limit > self.METRICS_WINDOW_SIZE:
+            raise ValueError(f"limit 必须在 1 到 {self.METRICS_WINDOW_SIZE} 之间")
+
+        with self._connect() as connection:
+            rows = connection.execute("""
+                SELECT
+                    request_logs.request_id,
+                    request_logs.session_id,
+                    request_logs.query,
+                    request_logs.intent,
+                    request_logs.retrieved_count,
+                    request_logs.citation_count,
+                    request_logs.retrieval_ms,
+                    request_logs.llm_ms,
+                    request_logs.total_ms,
+                    request_logs.status,
+                    request_logs.error_message,
+                    request_logs.created_at,
+                    feedback.helpful AS feedback_helpful,
+                    feedback.comment AS feedback_comment,
+                    feedback.created_at AS feedback_created_at
+                FROM request_logs
+                LEFT JOIN feedback ON feedback.request_id = request_logs.request_id
+                WHERE request_logs.status != 'success'
+                   OR feedback.helpful = 0
+                   OR request_logs.retrieved_count = 0
+                   OR request_logs.citation_count = 0
+                ORDER BY request_logs.created_at DESC, request_logs.rowid DESC
+                LIMIT ?
+            """, (limit,)).fetchall()
+
+        cases = []
+        for row in rows:
+            reasons = []
+            if row["status"] != "success":
+                reasons.append("request_error")
+            if row["feedback_helpful"] == 0:
+                reasons.append("negative_feedback")
+            if row["retrieved_count"] == 0:
+                reasons.append("no_retrieval")
+            if row["status"] == "success" and row["citation_count"] == 0:
+                reasons.append("no_citation")
+
+            cases.append({
+                "request_id": row["request_id"],
+                "session_id": row["session_id"],
+                "query": row["query"],
+                "intent": row["intent"],
+                "retrieved_count": row["retrieved_count"],
+                "citation_count": row["citation_count"],
+                "retrieval_ms": row["retrieval_ms"],
+                "llm_ms": row["llm_ms"],
+                "total_ms": row["total_ms"],
+                "status": row["status"],
+                "error_message": row["error_message"],
+                "created_at": row["created_at"],
+                "feedback_helpful": bool(row["feedback_helpful"]) if row["feedback_helpful"] is not None else None,
+                "feedback_comment": row["feedback_comment"] or "",
+                "feedback_created_at": row["feedback_created_at"],
+                "failure_reasons": reasons,
+            })
+        return cases
+
     @staticmethod
     def _percentiles(latencies: list[float]) -> tuple[float, float]:
         if not latencies:
