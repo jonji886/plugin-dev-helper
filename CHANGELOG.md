@@ -33,6 +33,7 @@
 - 修复 `export function` 包装下 JSDoc 丢失，导致中文 API 描述无法进入知识库的问题
 
 ### Changed
+- 重构 README 的新人阅读路径：将完整首次运行指南前置，新增首次运行与项目阅读图示、需求价值与量化衡量方式，明确 RAG 同步和完整重建的适用场景，并统一 `.env` 格式说明
 - 聊天请求在线程中执行，避免 embedding 与同步 LLM 调用阻塞 FastAPI 事件循环
 - README 新增 Docker 部署章节：双容器架构、部署步骤、环境变量与踩坑记录；项目结构补充 `deploy/` 目录说明
 - `deploy/docker-compose.yml` 前端构建显式指定 `dockerfile: ../deploy/frontend/Dockerfile`（context 指向项目根 `frontend/` 源码），前端 Dockerfile 独立于源码目录维护，避免同步源码时误删；服务器部署目录同步重组为 `deploy/` 布局
