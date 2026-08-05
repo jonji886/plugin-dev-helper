@@ -1,209 +1,69 @@
 # 插件开发 AI Agent
 
-> 基于 LangGraph + DeepSeek 的 SDK 智能问答助手
+> 面向设计平台开放平台开发者的 SDK 智能问答助手。
 
-## 从零到可用
+它会将 `@manycore/idp-sdk` 和 `docs/rag/` 中的插件文档构建成知识库，帮助开发者查询 API、理解参数、生成代码示例，并展示可追溯的来源引用。
 
-1. 配置项目根目录 `.env`，写入 `DEEPSEEK_API_KEY=...`
-2. 构建知识库：`.venv/bin/python scripts/run_pipeline.py`
-3. 启动后端和前端：先执行 `.venv/bin/uvicorn app.main:app --reload --port 8000`，再执行 `cd frontend && npm run dev`
+## 你能用它做什么
 
-需要部署到服务器外网访问时，直接使用 [Docker 部署](#docker-部署) 章节的方案，无需手动安装依赖。
+- 查询 SDK API、接口、类型和枚举值
+- 根据问题生成 TypeScript / JavaScript 代码示例
+- 结合上下文进行多轮问答
+- 查看回答对应的 SDK 版本、源文件和行号（有检索结果时）
 
-## 项目简介
+## 需求价值与衡量方式
 
-插件开发 AI Agent 是一个面向设计平台开放平台插件开发者的智能问答助手。它能自动回答关于 SDK、API 和插件开发的问题，支持多轮对话、代码示例生成、参数说明和来源引用，帮助开发者减少等待人工回复的时间，降低技术支持成本。
+该项目的核心价值是把可标准化的 SDK 与插件开发咨询转为可自助、可验证的问答：开发者更快获得答案，技术支持可以把精力集中在复杂或未覆盖的问题上。系统不将尚未采集基线的业务收益写成既成事实，而是通过下列指标持续验证效果。
 
-### 核心能力
+| 价值 | 衡量指标 | 当前机制 / 质量门槛 |
+|---|---|---|
+| 更容易找到正确的 SDK 文档 | `Recall@5` | 离线评测门槛为 **≥ 85%** |
+| 回答更可靠 | 答案正确率、来源有效率 | 离线评测门槛分别为 **≥ 80%**、**≥ 90%** |
+| 回答过程可追溯 | 引用率 | 每次问答记录是否返回结构化来源引用 |
+| 问答服务可用且响应稳定 | 成功率、P50 / P95 延迟 | 记录请求、检索和模型调用耗时 |
+| 开发者感知价值可反馈 | 有帮助率、负反馈原因 | 前端反馈关联到单次请求，并可导出失败候选案例 |
 
-- **文档问答**：基于 SDK 知识库自动回答开发问题
-- **SDK 问答**：解析 `@manycore/idp-sdk` 类型定义，提供精准的 API / 接口 / 类型说明
-- **代码生成**：根据问题生成可直接运行的 TypeScript/JavaScript 代码示例
-- **参数说明**：详细解释函数参数、返回值类型和枚举值含义
-- **多轮对话**：支持上下文感知的连续对话
-- **来源引用**：所有回答附带 SDK 版本和源文件引用，保证可信
+`GET /api/metrics` 会基于**最近 1,000 条请求**返回成功率、P50/P95 延迟、平均检索/模型耗时、引用率和有帮助率；`GET /api/metrics/failures` 用于定位请求失败、无检索结果、无引用或收到负反馈的案例。检索与回答门槛可通过 `.venv/bin/python eval/run_eval.py` 验证。
 
-## 项目架构图
+### 业务收益如何量化
 
-```mermaid
-flowchart LR
-  U[用户] --> FE[前端]
-  FE --> CS[chatService.ts]
-  CS --> API[FastAPI]
-  API --> AR[AgentRunner]
-  AR --> LG[LangGraph]
-  LG --> IR[IntentRouter]
-  IR --> QR[QueryRewrite]
-  QR --> RT[Retriever]
-  RT --> VS[VectorStore]
-  RT --> GE[GraphExpander]
-  GE --> KB[知识库]
-  GE --> GD[依赖图]
-  GE --> AG[AnswerGenerator]
-  AG --> LLM[DeepSeek]
-  AG --> API
-  API --> CIT[结构化来源引用]
-  API --> FE
+上线前先连续采集至少一个完整业务周期的人工支持基线；上线后在相同周期、相近咨询量下对比。建议按以下口径计算，具体目标值由基线数据确定：
 
-  subgraph OFFLINE[离线知识构建链路]
-    SRC[TypeScript SDK] --> PARSER[SDKParser]
-    PARSER --> KBU[KnowledgeBuilder]
-    PARSER --> GBU[GraphBuilder]
-    KBU --> KNOW[data/knowledge]
-    GBU --> GRAPH[data/graph]
-    KNOW --> VSB[VectorStore]
-    VSB --> CHROMA[data/chroma]
-  end
-```
+| 业务收益 | 计算方式 |
+|---|---|
+| 人工答疑量下降率 | `(上线前单位周期人工答疑量 - 上线后单位周期人工答疑量) / 上线前单位周期人工答疑量` |
+| 首次响应时间缩短率 | `(上线前人工首次响应时间中位数 - AI 首次响应时间中位数) / 上线前人工首次响应时间中位数` |
+| 自助解决率 | `未转人工且获得正向反馈的问答数 / 全部 AI 问答数` |
+| 知识覆盖改善 | `(本周期 Recall@5 - 上一周期 Recall@5) / 上一周期 Recall@5` |
 
-## 技术架构
+人工答疑量、人工首次响应时间和是否转人工需要从客服或工单系统采集；当前应用自动记录的是 AI 问答的运行指标、引用情况和用户反馈。
 
-该项目由两条主链路组成：
-- **在线问答链路**：用户在前端提问，经由后端 API 进入 LangGraph Agent，最终返回答案
-- **离线构建链路**：SDK 解析后生成知识库、依赖图和向量索引
+> 表中的百分比是质量门槛或计算口径，不代表当前生产成效；请在取得基线和上线数据后补充实际结果与目标值。
 
-在线回答时，Agent 会先做意图识别和查询重写，再进行知识库检索与依赖图展开，最后由模型生成带来源引用的回答。
+## 首次运行（按此顺序操作）
 
-## 向量库设计
+### 开始前
 
-### 数据模型
-
-知识库索引（`data/knowledge/_index.json`）中的每个条目包含以下核心字段：
-
-| 字段 | 说明 |
-|------|------|
-| `id` | 知识单元唯一标识 |
-| `name` | 符号/文档名称 |
-| `type` | 类型：`interface`、`enum`、`type_alias`、`document` 等 |
-| `namespace` | 命名空间，`docs.rag` 表示 RAG 文档 |
-| `description` | 简短描述 |
-| `aliases` | 别名列表，用于关键词匹配 |
-| `is_overview` | 是否为总览型文档（优先召回） |
-| `source` | 来源文件 |
-| `contentHash` | 知识单元内容哈希，用于追踪构建产物版本 |
-
-### 检索流程
-
-```mermaid
-flowchart TD
-    Q[用户问题] --> SEM[语义检索]
-    Q --> LEX[符号、别名和描述词法检索]
-    SEM --> IQ{总览型问题?}
-    IQ -->|是| BO[overview 文档距离 × 0.8]
-    IQ -->|否| RRF[结果合并]
-    BO --> RRF
-    LEX --> RRF
-    RRF --> TOPK[重排返回 Top-K]
-```
-
-### 混合检索
-
-普通问题同时使用语义检索和符号词法检索。后者会匹配 API 路径、别名和 JSDoc 简短描述，因此“保存设计方案接口是哪个”也能召回 `IDP.Design.save`，而不要求开发者准确输入完整 SDK 路径。
-
-### 总览文档优先召回
-
-当用户问"插件可以做什么"、"插件有什么用"等总览型问题时，系统会优先召回《工具插件说明》等概览文档，而非具体 API 细节。
-
-**实现机制**：
-
-1. **文档标记**：文件名包含 `说明`、`介绍`、`概述`、`概览`、`overview`、`guide`、`intro` 的文档自动标记为 `is_overview: true`
-2. **问题识别**：`is_overview_query()` 识别总览型问题（关键词：`可以做什么`、`有什么用`、`介绍一下`、`能力介绍` 等）
-3. **加权检索**：扩大语义候选集到 50 个，对 overview 文档的距离值乘以 0.8，再与词法结果合并重排
-
-**效果示例**：
-
-| 查询 | 普通检索 Top 1 | 加权检索 Top 1 |
-|------|----------------|----------------|
-| "插件可以做什么" | EBomMoldingCornerType | 工具插件说明 ✓ |
-| "插件有什么用" | ECustomerQueryRange | 工具插件说明 ✓ |
-| "介绍一下插件的能力" | IBomPlankLayoutTranslation | 工具插件说明 ✓ |
-
-## 技术栈
-
-| 模块 | 技术 |
-|------|------|
-| 后端框架 | Python 3.11 + FastAPI |
-| LLM | DeepSeek Chat（`deepseek-chat`，通过 `ChatOpenAI` 接入） |
-| Agent 框架 | LangGraph + LangChain |
-| 知识库检索 | Chroma + sentence-transformers（`all-MiniLM-L6-v2`） |
-| SDK 解析 | tree-sitter（TypeScript AST） |
-| 前端 | Next.js 16 + React 19 + Tailwind CSS 4 |
-| 回答展示 | GitHub 风格 Markdown（标题、列表、表格、引用、链接、代码）+ 一键复制 |
-| 评测 | 检索召回、引用有效率、答案正确性门禁 |
-
-## 项目结构
-
-```
-├── agent/                  # LangGraph Agent 核心逻辑
-│   ├── assistant.py        # Agent 节点定义与状态图
-│   └── __init__.py         # Agent Runner 入口
-├── app/                    # FastAPI 后端服务
-│   └── main.py             # API 路由定义
-├── frontend/               # Next.js 前端聊天界面
-│   └── src/
-│       ├── app/            # Next.js App Router
-│       ├── components/     # 聊天 UI 组件
-│       ├── services/       # 前端 API 服务
-│       └── types/          # TypeScript 类型定义
-├── sdk_parser/             # TypeScript AST 解析器
-│   ├── parser.py           # tree-sitter 解析逻辑
-│   └── models.py           # 符号模型定义
-├── knowledge_builder/      # 知识库构建
-│   └── builder.py          # Markdown + JSON 生成
-├── graph_builder/          # 类型依赖图构建
-│   └── __init__.py
-├── vector_store/           # 向量存储与检索
-│   └── store.py            # Chroma 封装
-├── prompts/                # 系统提示词
-│   └── system.md           # Agent 系统提示词
-├── scripts/                # 工具脚本
-│   └── run_pipeline.py     # 端到端流水线
-├── deploy/                 # Docker 部署配置
-│   ├── Dockerfile          # 后端镜像（FastAPI + 知识库）
-│   ├── docker-compose.yml  # 双容器编排
-│   └── frontend/           # 前端镜像（Next.js）
-├── eval/                   # 自动评测
-│   ├── run_eval.py         # 评测脚本
-│   ├── test_data.json      # 基础测试集
-│   └── regression_cases.json # 人工确认的失败案例回归集
-├── data/                   # 数据目录
-│   ├── chroma/             # Chroma 向量数据库
-│   ├── knowledge/          # 知识库（Markdown + JSON）
-│   └── graph/              # 依赖图数据
-├── spec.md                 # 产品规格文档
-└── package.json            # Node.js SDK 依赖
-```
-
-## 快速开始
-
-### 前置要求
+请确认本机已安装：
 
 - Python 3.11+
 - Node.js 18+
-- DeepSeek API Key
+- DeepSeek API Key（推荐配置；未配置时服务仍可启动，但只返回本地知识库兜底内容）
 
 ### 1. 安装依赖
 
-先使用 Python 3.11 创建虚拟环境并安装后端依赖，再安装前端依赖：
+在项目根目录执行：
 
 ```bash
 python3.11 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
-
-# 项目根目录 SDK 依赖
 npm install
-
-# 前端依赖
 cd frontend && npm install
 ```
 
-> 后端运行与测试命令均使用 `.venv/bin/python`，避免系统 `python` 指向错误版本。
-> 项目包含多个顶级 Python 包，已在 `pyproject.toml` 中显式声明；请保留 `-e ".[dev]"` 的安装方式，以便本地与 GitHub Actions 使用相同的依赖安装路径。
-> 项目通过 `langchain-openai` 获取 `langchain_core`，只使用其公开消息接口；无需单独安装通用 `langchain` 或 `langchain-community` 包。
+`npm install` 必须在项目根目录执行，它会安装知识构建所需的 SDK；前端依赖则安装在 `frontend/` 中。
 
-前端布局采用全宽可伸缩容器，主内容区会随浏览器窗口自适应；消息正文保留最大阅读宽度，避免超宽屏下单行文字过长。
-
-### 2. 配置环境变量
+### 2. 配置模型密钥
 
 在项目根目录创建 `.env` 文件：
 
@@ -211,115 +71,165 @@ cd frontend && npm install
 DEEPSEEK_API_KEY=your_api_key_here
 ```
 
-后端启动时会自动读取项目根目录的 `.env`，并在日志中打印 DeepSeek key 是否已加载。
+后端会自动读取这个文件，并在启动日志中提示密钥是否已加载。`.env` 文件统一使用 `KEY=value` 格式，不要添加 `export` 前缀。
 
 ### 3. 构建知识库
-
-首次启动或更新 SDK 文档后，先构建知识库：
 
 ```bash
 .venv/bin/python scripts/run_pipeline.py
 ```
 
-这一步会解析 SDK、生成知识库文档、构建依赖图，并更新向量索引。
+首次构建会解析 SDK、同步 RAG 文档、生成依赖图并创建向量索引；结束时应看到“构建完成!”以及知识单元和向量文档数量。
 
-### 4. 同步 RAG 文档
+### 4. 启动两个服务
 
-如果你更新了 `docs/rag/` 下的酷家乐插件文档，先同步到知识库，再重建索引：
-
-```bash
-.venv/bin/python scripts/sync_rag_docs.py
-```
-
-该脚本会把 `docs/rag/**/*.md` 转成 `data/knowledge/` 下可入库的 Markdown / JSON，并更新 `_index.json`，随后按需重建 `data/chroma/`。
-
-### 5. 校验 RAG 文档召回
-
-项目提供了专项评测样本，包含 `rag_doc` 类问题，用于验证新增的 `docs/rag` 文档是否能被检索到：
-
-```bash
-.venv/bin/python eval/run_eval.py
-```
-
-你也可以直接用 `VectorStore.search()` 对 `docs/rag` 里的关键词做检索检查。
-
-### 6. 离线知识构建流程
-
-项目在首次启动或 SDK 文档更新后，需要先执行知识构建流水线：
-
-```mermaid
-flowchart TD
-  A[SDK] --> B[解析]
-  B --> C[知识单元]
-  B --> D[依赖图]
-  C --> E[写入知识库]
-  D --> F[写入图数据]
-  E --> G[向量索引]
-  G --> H[写入 Chroma]
-```
-
-### 7. 在线问答流程
-
-用户在前端输入问题后，系统会经过如下步骤返回答案：
-
-```mermaid
-flowchart TD
-  A[用户] --> B[前端]
-  B --> C[API 请求]
-  C --> D[会话管理]
-  D --> E[意图识别]
-  E --> F[查询重写]
-  F --> G[知识库检索]
-  G --> H[依赖图展开]
-  H --> I[答案生成]
-  I --> J[DeepSeek]
-  J --> K[返回前端]
-  K --> L[渲染消息]
-```
-
-### 8. 启动后端
-
-在项目根目录启动 FastAPI 服务：
+保持当前终端在项目根目录，启动后端：
 
 ```bash
 .venv/bin/uvicorn app.main:app --reload --port 8000
 ```
 
-启动成功后可以访问：
-
-- 健康检查：`http://localhost:8000/api/health`
-- 对话接口：`http://localhost:8000/api/chat`
-
-### 9. 启动前端
-
-另开一个终端，进入前端目录并启动 Next.js：
+另开一个终端，启动前端：
 
 ```bash
 cd frontend && npm run dev
 ```
 
-启动后访问：
+### 5. 验证成功
 
-- `http://localhost:3000`
+1. 浏览器打开 `http://localhost:8000/api/health`，应返回包含 `"status":"ok"` 的 JSON。
+2. 打开 `http://localhost:3000`，应看到“插件开发 AI 助手”页面。
+3. 发送问题：`IDP.Miniapp.exit 怎么使用？`。
+4. 页面应返回回答；有相关知识时，回答下方会显示来源引用。
 
-前端默认通过 `NEXT_PUBLIC_API_URL` 访问后端；本地开发未单独配置时，默认指向 `http://localhost:8000`。
+### 首次运行地图
 
-### 10. 本地运行校验
+```mermaid
+flowchart LR
+  A[检查 Python / Node.js] --> B[安装依赖]
+  B --> C[配置 .env]
+  C --> D[运行知识构建]
+  D --> K[data/knowledge、data/graph、data/chroma]
+  D --> E[终端 1：启动后端 :8000]
+  E --> F[终端 2：启动前端 :3000]
+  F --> G[浏览器提问并查看引用]
+```
 
-按下面顺序确认服务是否正常：
+## 常见问题
 
-1. 后端健康检查返回 `200`：`GET /api/health`
-2. 打开前端首页，能看到“插件开发 AI 助手”页面
-3. 发送一条问题，例如：`IDP.Miniapp.exit 怎么使用？`
-4. 确认页面能返回回答，并且不会再出现网络连接失败
+- **提示未加载 DeepSeek key**：确认项目根目录存在 `.env`，且其中为 `DEEPSEEK_API_KEY=...`；未配置密钥时仍可查看本地兜底结果。
+- **回答提示没有知识或质量很差**：执行 `.venv/bin/python scripts/run_pipeline.py`，确认构建成功。
+- **前端显示接口错误**：先访问 `http://localhost:8000/api/health`；若正常，再检查 `NEXT_PUBLIC_API_URL` 是否指向正确后端。
+- **端口 8000 或 3000 被占用**：停止占用端口的进程，或为对应启动命令换一个端口。
 
-### 11. 常见问题
+## 日常开发：何时运行哪个命令
 
-- **启动日志提示未加载 DeepSeek key**：检查项目根目录 `.env` 是否存在，以及 `DEEPSEEK_API_KEY` 是否写在当前运行环境可读取的位置。
-- **端口 8000 被占用**：停止占用进程，或修改后端启动端口。
-- **端口 3000 被占用**：停止占用进程，或让 Next.js 换一个端口启动。
-- **回答质量很差或提示没有知识**：先确认是否已执行 `.venv/bin/python scripts/run_pipeline.py` 重新构建知识库。
-- **前端显示接口错误**：先确认后端 `http://localhost:8000/api/health` 是否正常，再检查前端是否仍在访问默认后端地址。
+| 改动内容 | 应执行的命令 | 结果 |
+|------|------|------|
+| 仅修改 `docs/rag/` 中的 Markdown | `.venv/bin/python scripts/sync_rag_docs.py` | 同步文档；内容变更时自动重建向量索引 |
+| SDK 更新，或希望完整重建 | `.venv/bin/python scripts/run_pipeline.py` | 重新解析 SDK、同步 RAG 文档、生成依赖图和索引 |
+| 验证问答效果 | `.venv/bin/python eval/run_eval.py` | 运行检索和答案质量评测 |
+| 运行后端测试 | `.venv/bin/python -m unittest discover -s tests -v` | 执行后端单元测试 |
+
+> 后端运行和测试命令均使用 `.venv/bin/python`，以避免系统默认 Python 版本不符合要求。`pip install -e ".[dev]"` 不应改为普通安装方式，项目依赖它在本地和 CI 中发现多个顶级 Python 包。
+
+## 项目阅读地图
+
+如果你准备参与开发，推荐按下面顺序阅读：
+
+```mermaid
+flowchart LR
+  A[app/main.py\nAPI 入口] --> B[agent/assistant.py\n问答编排]
+  B --> C[vector_store/store.py\n检索]
+  C --> D[knowledge_builder / graph_builder\n知识与依赖图]
+  D --> E[scripts/run_pipeline.py\n离线构建入口]
+  A --> F[frontend/src\n聊天界面]
+```
+
+| 目录 / 文件 | 作用 |
+|---|---|
+| `app/main.py`、`app/config.py`、`app/metrics_store.py` | FastAPI 路由、运行配置、指标与反馈持久化 |
+| `agent/assistant.py` | LangGraph 问答节点、会话与答案生成编排 |
+| `frontend/src/` | Next.js 聊天界面与后端 API 调用 |
+| `sdk_parser/` | TypeScript SDK 类型定义解析 |
+| `knowledge_builder/`、`graph_builder/`、`vector_store/` | 知识单元生成、依赖图构建、混合检索 |
+| `scripts/` | 知识构建和 RAG 文档同步脚本 |
+| `tests/`、`eval/` | 单元测试与问答质量评测 |
+| `data/` | 构建产物和本地 SQLite 数据，不应手工编辑 |
+
+## 工作原理
+
+项目由两条链路组成：离线链路把 SDK 和插件文档变为可检索知识；在线链路接收用户问题，检索知识并生成回答。
+
+```mermaid
+flowchart LR
+  subgraph OFFLINE[离线知识构建]
+    SRC[TypeScript SDK 与 docs/rag] --> PARSER[SDKParser]
+    PARSER --> KB[KnowledgeBuilder]
+    PARSER --> GRAPH[GraphBuilder]
+    KB --> KNOW[data/knowledge]
+    GRAPH --> DEPS[data/graph]
+    KNOW --> CHROMA[data/chroma]
+  end
+
+  subgraph ONLINE[在线问答]
+    U[用户] --> FE[Next.js 前端]
+    FE --> API[FastAPI]
+    API --> AGENT[LangGraph Agent]
+    AGENT --> RETRIEVE[混合检索与依赖展开]
+    RETRIEVE --> KNOW
+    RETRIEVE --> DEPS
+    AGENT --> LLM[DeepSeek]
+    LLM --> API
+    API --> FE
+  end
+```
+
+### 在线问答过程
+
+1. 前端把问题发送到 `POST /api/chat`。
+2. Agent 识别问题意图；多轮对话时会结合历史重写问题。
+3. 系统同时进行语义检索和 API 名称、别名、描述的词法检索，再展开相关类型依赖。
+4. DeepSeek 基于检索结果生成回答；后端附加可验证的结构化来源引用。
+
+### 知识库与检索
+
+`data/knowledge/_index.json` 的每条知识记录包含以下常用字段：
+
+| 字段 | 说明 |
+|---|---|
+| `id` | 知识单元唯一标识 |
+| `name`、`description` | 名称与简短描述 |
+| `type`、`namespace` | 知识类型及来源命名空间 |
+| `aliases` | 用于自然语言和 API 名称匹配的别名 |
+| `source`、`contentHash` | 来源文件与构建产物版本追踪信息 |
+| `is_overview` | 是否为插件能力总览文档 |
+
+```mermaid
+flowchart TD
+  Q[用户问题] --> SEM[语义检索]
+  Q --> LEX[API 路径、别名与描述检索]
+  SEM --> O{总览型问题？}
+  O -->|是| BOOST[提高总览文档权重]
+  O -->|否| MERGE[合并结果]
+  BOOST --> MERGE
+  LEX --> MERGE
+  MERGE --> TOPK[重排并返回 Top-K]
+```
+
+总览型问题（例如“插件可以做什么”）会优先考虑《工具插件说明》等文档；具体 API 问题则同时利用语义和符号匹配，例如“保存设计方案接口是哪个”可以召回 `IDP.Design.save`。
+
+## 技术栈
+
+| 模块 | 技术 |
+|---|---|
+| 后端 | Python 3.11 + FastAPI |
+| LLM | DeepSeek Chat（`deepseek-chat`，通过 `ChatOpenAI` 接入） |
+| Agent | LangGraph + LangChain |
+| 知识库 | Chroma + sentence-transformers（`all-MiniLM-L6-v2`） |
+| SDK 解析 | tree-sitter（TypeScript AST） |
+| 前端 | Next.js 16 + React 19 + Tailwind CSS 4 |
+| 评测 | 检索召回、引用有效率、答案正确性门禁 |
 
 ## Docker 部署
 
@@ -376,7 +286,7 @@ HF_HUB_OFFLINE=1
 TRANSFORMERS_OFFLINE=1
 ```
 
-> 注意：本地开发用的 `.env` 是 `export KEY=value` 格式，部署前需去掉 `export ` 前缀；`NEXT_PUBLIC_API_URL` 需改为你服务器的实际公网 IP。
+> 注意：本地开发和部署均使用 `KEY=value` 格式；`NEXT_PUBLIC_API_URL` 需改为你服务器的实际公网 IP。
 
 #### 3. 上传到服务器
 
