@@ -1,5 +1,7 @@
 # Plugin Dev Helper
 
+[![CI](https://github.com/jonji886/plugin-dev-helper/actions/workflows/ci.yml/badge.svg)](https://github.com/jonji886/plugin-dev-helper/actions/workflows/ci.yml)
+
 > 面向 SDK / API / TypeScript 源码和插件开发文档的 **Enterprise Developer Copilot**。它把结构化知识构建、Hybrid RAG、LangGraph Workflow、可验证 Citation、Observability、用户反馈和离线评测连接成一个可持续改进的 AI 应用闭环。
 
 本项目不是通用 Chatbot，也不是只展示向量检索的 PDF RAG Demo。目标用户是使用设计平台开放能力的研发人员；目标是让开发者更快找到正确 API、理解参数和源码、生成可执行示例，并能追溯答案依据。
@@ -245,9 +247,11 @@ REASON=Pro/zai-org/GLM-5.1
 VISION=Qwen/Qwen3-VL-32B-Instruct
 ```
 
+如果同时配置官方 `DEEPSEEK_API_KEY`，系统通过 Adapter 为文本角色启用故障转移：SiliconFlow 的一次请求出现超时、连接断开、429 或 5xx 等可恢复错误后，Router/Main/Reason 默认切换到官方 `deepseek-v4-flash`。主 Provider 的重试默认降为 0，DeepSeek 备份调用默认最多等待 30 秒且不重试，避免两套重试叠加放大延迟。官方接口默认地址为 `https://api.deepseek.com`；可通过 `DEEPSEEK_FALLBACK_*_MODEL` 覆盖映射。Vision 默认不启用 DeepSeek 兜底，避免把不确定的图像能力当成可用能力。
+
 如果四角色变量均未设置，系统继续兼容旧配置：`MODEL_GLM` → default、`MODEL_QWEN` → fast、`MODEL_DEEPSEEK` → strong；显式 `DEFAULT/FAST/STRONG_LLM_PROVIDER/MODEL` 优先级更高。缺失的可选角色会回退到 Main，并在 `GET /api/ready` 的 `model_role_status` 标记 `fallback=true`。
 
-路由不会把 API Key 写入响应或 Trace；`GET /api/ready` 会返回脱敏后的 `model_routes` 和各角色可用性。SiliconFlow 使用 OpenAI-compatible 接口，模型 ID 必须使用平台中实际可用的模型标识；Vision 角色应配置支持图像输入的模型。
+路由不会把 API Key 写入响应或 Trace；`GET /api/ready` 会返回脱敏后的 `model_routes`、已绑定的 `fallback_routes` 和各角色可用性。SiliconFlow 使用 OpenAI-compatible 接口，模型 ID 必须使用平台中实际可用的模型标识；Vision 角色应配置支持图像输入的模型。
 
 价格集中在 [`config/model_pricing.json`](config/model_pricing.json)，每次调用从 provider response metadata 读取 token，缺失时使用明确的字符数估算，并计算 `estimated_cost`。当前四角色绑定的官方价格（每百万 Token，CNY，抓取于 2026-08-24）如下；GLM-5.1 Pro 按输入是否超过 32K 分档：
 
@@ -260,10 +264,13 @@ VISION=Qwen/Qwen3-VL-32B-Instruct
 
 价格来源为[硅基流动官方模型价格中心](https://cloud-rd.siliconflow.cn/pricing)，价格可能随账户、时段和平台政策变化；未知模型仍只统计 Token，成本显示为 `0`，不会伪造金额。
 
+官方 DeepSeek 兜底默认使用 `deepseek-v4-flash`，成本配置按官方价格中心的 cache-miss 输入价格估算为 `$0.14/$0.28`（输入/输出，每百万 Token）；配置文件同时保留 `deepseek-v4-pro` 的可选价格记录。价格可能随峰谷时段和官方政策变化，详见[DeepSeek 官方模型与价格](https://api-docs.deepseek.com/quick_start/pricing/)。
+
 ## 11. Reliability & Safety
 
 - Langfuse 默认关闭，远程上报失败不影响业务请求。
 - LLM 超时、重试次数、检索 Top-K 都由环境变量控制；当前中转配置建议 `LLM_TIMEOUT_SECONDS=60` 供 Main/Reason/Vision 使用，Router 使用独立的 15 秒预算。
+- Provider 通过 Adapter 隔离；SiliconFlow → 官方 DeepSeek 的故障转移只对超时、连接错误、429 和 5xx 等瞬时错误生效，401/403/422 等配置或请求错误不会盲目切换。
 - 服务启动阶段会预热本地 embedding 模型；`GET /api/ready` 返回 `embedding_ready` 和 `embedding_warmup_ms`，避免首个用户请求承担模型加载成本。
 - 每个请求在上下文隔离范围内统计 token 和估算成本，不会把前序请求的累计值重复写入当前请求；`ANSWER_CONTEXT_MAX_CHARS` 默认限制证据上下文为 6000 字符，Relay 较慢时可适当下调。
 - 模型不可用时返回本地知识库兜底内容，不伪装成模型答案。

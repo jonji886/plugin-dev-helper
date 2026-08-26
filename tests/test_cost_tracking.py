@@ -29,6 +29,8 @@ class CostTrackingTests(unittest.TestCase):
         self.assertEqual(calculate_cost("siliconflow", "Qwen/Qwen3-8B", 1000, 1000), 0.0)
         self.assertEqual(calculate_cost("siliconflow", "deepseek-ai/DeepSeek-V4-Flash", 1_000_000, 1_000_000), 3.0)
         self.assertEqual(calculate_cost("siliconflow", "Qwen/Qwen3-VL-32B-Instruct", 1_000_000, 1_000_000), 5.0)
+        self.assertEqual(calculate_cost("deepseek", "deepseek-v4-flash", 1_000_000, 1_000_000), 0.42)
+        self.assertEqual(calculate_cost("deepseek", "deepseek-v4-pro", 1_000_000, 1_000_000), 1.305)
         self.assertEqual(calculate_cost("siliconflow", "Pro/zai-org/GLM-5.1", 32_000, 1_000_000), 24.192)
         self.assertEqual(calculate_cost("siliconflow", "Pro/zai-org/GLM-5.1", 32_001, 1_000_000), 28.256008)
 

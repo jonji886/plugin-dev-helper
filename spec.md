@@ -58,7 +58,7 @@ Vector Store (Chroma / 免费Embedding)
         ↓
 LangGraph Agent
         ↓
-Router / Main / Reason / Vision（SiliconFlow OpenAI-compatible）
+Router / Main / Reason / Vision（Adapter + SiliconFlow 主路由 / DeepSeek 故障转移）
         ↓
 FastAPI 后端
         ↓
@@ -70,7 +70,7 @@ Next.js / React 前端聊天界面
 # 4. 技术栈
 
 * 后端：Python 3.11 + FastAPI
-* LLM：SiliconFlow 中转的四角色模型：Router、Main、Reason、Vision
+* LLM：四角色路由通过 Adapter 接入 SiliconFlow；文本角色支持官方 DeepSeek 故障转移
 * Agent：LangGraph + LangChain
 * Embedding：`sentence-transformers/all-MiniLM-L6-v2`（免费）
 * Vector Store：Chroma

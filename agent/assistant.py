@@ -26,16 +26,17 @@ import operator
 
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
-from langchain_openai import ChatOpenAI
 
 from vector_store import VectorStore
 from app.llm_usage import (
-    calculate_cost,
     current_request_usage,
-    extract_usage,
-    record_request_usage,
     reset_request_usage,
     start_request_usage,
+)
+from app.llm_adapter import (
+    FailoverAdapter,
+    create_instrumented_adapter,
+    provider_runtime_config,
 )
 from app.model_router import ModelRoute, ModelRouter, infer_task_type
 from app.observability import Observability, get_observability
@@ -181,70 +182,10 @@ class AgentState(TypedDict):
     estimated_cost: float
 
 
-# ========== DeepSeek LLM 初始化 ==========
-
-class InstrumentedLLM:
-    """Small provider-neutral wrapper collecting usage and prompt metadata."""
-
-    def __init__(self, llm, route: ModelRoute, prompt_registry: PromptRegistry,
-                 observability: Observability, trace: object | None = None,
-                 prompt_version: str = "v1", temperature: float = 0.1,
-                 max_tokens: int = 4096, max_retries: int = 2):
-        self.llm = llm
-        self.route = route
-        self.prompt_registry = prompt_registry
-        self.observability = observability
-        self.trace = trace
-        self.prompt_version = prompt_version
-        self.temperature = temperature
-        self.max_tokens = max_tokens
-        self.max_retries = max_retries
-        self.stats = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0,
-                      "estimated_cost": 0.0, "prompt_versions": {}}
-
-    def invoke(self, messages, prompt_name: str = "developer_qa", trace: object | None = None,
-               task_type: str = "general"):
-        prompt_version = self.prompt_version
-        if prompt_name != "developer_qa":
-            prompt_version = "v1"
-        prompt_metadata = self.prompt_registry.metadata(prompt_name, prompt_version)
-        prompt_text = "\n".join(str(getattr(message, "content", "")) for message in messages)
-        with self.observability.span(trace or self.trace or object(), f"llm:{prompt_name}", {
-            "prompt_name": prompt_name, "prompt_version": prompt_version,
-            "prompt_status": prompt_metadata.get("status", ""),
-            "provider": self.route.provider, "model": self.route.model,
-            "route_reason": self.route.reason, "model_role": self.route.role,
-            "temperature": self.temperature, "max_tokens": self.max_tokens,
-        }) as span:
-            response = self.llm.invoke(messages)
-            output_text = str(getattr(response, "content", ""))
-            usage = extract_usage(response, prompt_text, output_text)
-            self.stats["input_tokens"] += usage["input_tokens"]
-            self.stats["output_tokens"] += usage["output_tokens"]
-            self.stats["total_tokens"] += usage["total_tokens"]
-            request_cost = calculate_cost(
-                self.route.provider, self.route.model,
-                usage["input_tokens"], usage["output_tokens"],
-            )
-            self.stats["estimated_cost"] += request_cost
-            record_request_usage(usage, request_cost)
-            self.stats["prompt_versions"][prompt_name] = prompt_version
-            self.observability.update(span, usage=usage, model=self.route.model,
-                                      provider=self.route.provider,
-                                      prompt_name=prompt_name,
-                                      prompt_version=prompt_version,
-                                      prompt_status=prompt_metadata.get("status", ""),
-                                      route_reason=self.route.reason,
-                                      model_role=self.route.role,
-                                      temperature=self.temperature,
-                                      estimated_cost=request_cost)
-            return response
-
-
 class RoutedLLM:
     """Selects a configured profile per invocation while preserving one app API."""
 
-    def __init__(self, clients: dict[str, InstrumentedLLM], router: ModelRouter):
+    def __init__(self, clients: dict[str, FailoverAdapter], router: ModelRouter):
         self.clients = clients
         self.router = router
         self.last_route = next(iter(clients.values())).route if clients else None
@@ -279,70 +220,40 @@ class RoutedLLM:
         client = self.clients.get(route.profile) or self.clients.get("default")
         if client is None:
             client = next(iter(self.clients.values()))
+        response = client.invoke(messages, prompt_name=prompt_name, trace=trace, task_type=task)
+        actual_route = getattr(client, "last_route", client.route)
         self.last_route = ModelRoute(
-            provider=client.route.provider,
-            model=client.route.model,
-            reason=route.reason,
+            provider=actual_route.provider,
+            model=actual_route.model,
+            reason=actual_route.reason or route.reason,
             profile=route.profile,
             role=route.role,
         )
-        return client.invoke(messages, prompt_name=prompt_name, trace=trace, task_type=task)
+        return response
 
 
 def _provider_runtime_config(provider: str) -> tuple[str, str | None]:
-    """Resolve credentials and base URL for an OpenAI-compatible provider."""
-    normalized = provider.lower().replace("-", "").replace("_", "")
-    if normalized == "siliconflow":
-        return (
-            os.environ.get("SILICONFLOW_API_KEY", "").strip(),
-            os.environ.get("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1").strip(),
-        )
-    if normalized == "deepseek":
-        return (
-            os.environ.get("DEEPSEEK_API_KEY", "").strip(),
-            os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1").strip(),
-        )
-    if normalized == "openai":
-        return (
-            os.environ.get("OPENAI_API_KEY", "").strip(),
-            os.environ.get("OPENAI_BASE_URL", "").strip() or None,
-        )
-
-    prefix = provider.upper().replace("-", "_")
-    return (
-        os.environ.get(f"{prefix}_API_KEY", "").strip(),
-        os.environ.get(f"{prefix}_BASE_URL", "").strip() or None,
-    )
+    """Backward-compatible import for existing callers/tests."""
+    return provider_runtime_config(provider)
 
 
 def get_llm(timeout_seconds: float = 30.0, max_retries: int = 2,
             route: ModelRoute | None = None, prompt_registry: PromptRegistry | None = None,
             observability: Observability | None = None, trace: object | None = None,
-            prompt_version: str = "v1", max_tokens: int = 4096):
-    """获取 OpenAI-compatible LLM；未配置密钥时保留本地兜底模式。"""
-    route = route or ModelRoute("deepseek", "deepseek-chat", "default", "default")
-    provider = route.provider.lower()
-    api_key, base_url = _provider_runtime_config(provider)
-    if api_key:
-        print(f"[env] {provider} API key 已加载，model={route.model}")
-    else:
-        print(f"[env] {provider} API key 未加载")
-        print("[warn] API key 未设置，使用本地兜底模式")
-        return None
-
-    llm = ChatOpenAI(
-        model=route.model,
-        api_key=api_key,
-        base_url=base_url,
-        temperature=0.1,
-        max_tokens=max_tokens,
-        timeout=timeout_seconds,
+            prompt_version: str = "v1", max_tokens: int = 4096,
+            image_support: bool | None = None):
+    """Create an instrumented Provider Adapter."""
+    route = route or ModelRoute("deepseek", "deepseek-v4-flash", "default", "default")
+    return create_instrumented_adapter(
+        route=route,
+        timeout_seconds=timeout_seconds,
         max_retries=max_retries,
-    )
-    return InstrumentedLLM(
-        llm, route, prompt_registry or PromptRegistry(),
-        observability or get_observability(), trace, prompt_version,
-        temperature=0.1, max_tokens=max_tokens, max_retries=max_retries,
+        max_tokens=max_tokens,
+        prompt_registry=prompt_registry or PromptRegistry(),
+        observability=observability or get_observability(),
+        trace=trace,
+        prompt_version=prompt_version,
+        image_support=image_support,
     )
 
 
@@ -712,6 +623,71 @@ class AnswerGenerator:
 
 # ========== Agent 构建 ==========
 
+def _env_bool(name: str, default: bool) -> bool:
+    return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _nonnegative_env_int(name: str, default: int) -> int:
+    try:
+        return max(0, int(os.getenv(name, str(default))))
+    except (TypeError, ValueError):
+        return max(0, default)
+
+
+def _deepseek_fallback_route(primary: ModelRoute) -> ModelRoute | None:
+    """Build the official DeepSeek backup route for a SiliconFlow role."""
+    if not _env_bool("DEEPSEEK_FALLBACK_ENABLED", True):
+        return None
+    if primary.provider.lower().replace("-", "").replace("_", "") != "siliconflow":
+        return None
+    if not os.getenv("DEEPSEEK_API_KEY", "").strip():
+        return None
+
+    # DeepSeek's official API is text-only for this fallback path by default;
+    # leave Vision without a backup unless the operator explicitly provides a
+    # compatible model through the role-specific variable.
+    profile_key = primary.profile.lower()
+    default_models = {
+        "router": "deepseek-v4-flash",
+        "main": "deepseek-v4-flash",
+        "reason": "deepseek-v4-flash",
+        "vision": "",
+        "default": "deepseek-v4-flash",
+        "fast": "deepseek-v4-flash",
+        "strong": "deepseek-v4-flash",
+    }
+    model = os.getenv(f"DEEPSEEK_FALLBACK_{profile_key.upper()}_MODEL", "").strip()
+    if not model:
+        model = default_models.get(profile_key, default_models.get(primary.role, ""))
+    if not model:
+        return None
+    return ModelRoute(
+        provider="deepseek",
+        model=model,
+        reason=f"DeepSeek official fallback for {primary.role or primary.profile} role",
+        profile=primary.profile,
+        role=primary.role,
+    )
+
+
+def _primary_retry_limit(route: ModelRoute, configured_retries: int,
+                        fallback_route: ModelRoute | None) -> int:
+    """Avoid multiplying the primary timeout before an available backup runs."""
+    if fallback_route is None:
+        return configured_retries
+    try:
+        return max(0, int(os.getenv("SILICONFLOW_MAX_RETRIES", "0")))
+    except ValueError:
+        return 0
+
+
+def _fallback_timeout(primary_timeout: float) -> float:
+    try:
+        configured = max(0.1, float(os.getenv("DEEPSEEK_FALLBACK_TIMEOUT_SECONDS", "30")))
+    except ValueError:
+        configured = 30.0
+    return min(primary_timeout, configured)
+
 def build_agent(
     top_k: int = 5,
     timeout_seconds: float = 30.0,
@@ -731,7 +707,7 @@ def build_agent(
     # route is constructed here; nodes can still classify the request without
     # an LLM and the configured single-model fallback remains valid.
     observability = observability or get_observability()
-    clients = {}
+    clients: dict[str, FailoverAdapter] = {}
     configured_routes = model_router.role_routes() if model_router.uses_role_config() else model_router.profile_routes()
     profiles = ("router", "main", "reason", "vision") if model_router.uses_role_config() else ("default", "fast", "strong")
     for profile in profiles:
@@ -739,13 +715,35 @@ def build_agent(
         route_timeout, route_retries, route_max_tokens = _llm_runtime_limits(
             profile_route, timeout_seconds, max_retries
         )
-        client = get_llm(timeout_seconds=route_timeout, max_retries=route_retries,
-                         max_tokens=route_max_tokens,
-                         route=profile_route, prompt_registry=prompt_registry,
-                         observability=observability, trace=trace,
-                         prompt_version=prompt_version)
-        if client and profile_route.profile not in clients:
-            clients[profile_route.profile] = client
+        fallback_route = _deepseek_fallback_route(profile_route)
+        primary = get_llm(
+            timeout_seconds=route_timeout,
+            max_retries=_primary_retry_limit(profile_route, route_retries, fallback_route),
+            max_tokens=route_max_tokens,
+            route=profile_route,
+            prompt_registry=prompt_registry,
+            observability=observability,
+            trace=trace,
+            prompt_version=prompt_version,
+        )
+        fallback = None
+        if fallback_route:
+            fallback = get_llm(
+                timeout_seconds=_fallback_timeout(route_timeout),
+                max_retries=_nonnegative_env_int("DEEPSEEK_FALLBACK_MAX_RETRIES", 0),
+                max_tokens=route_max_tokens,
+                route=fallback_route,
+                prompt_registry=prompt_registry,
+                observability=observability,
+                trace=trace,
+                prompt_version=prompt_version,
+                image_support=False,
+            )
+        selected = FailoverAdapter(primary, fallback, observability) if primary else None
+        if selected is None and fallback:
+            selected = FailoverAdapter(fallback, None, observability)
+        if selected and profile_route.profile not in clients:
+            clients[profile_route.profile] = selected
     llm = RoutedLLM(clients, model_router) if clients else None
     vector_store = VectorStore(persist_dir=chroma_path, knowledge_dir=knowledge_path)
 

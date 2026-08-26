@@ -181,6 +181,16 @@ async def ready():
         raise HTTPException(status_code=503, detail=f"服务未就绪: {error}") from error
 
     routes = model_router.role_routes() if model_router.uses_role_config() else model_router.profile_routes()
+    runtime_agent = get_agent()
+    runtime_llm = getattr(getattr(runtime_agent, "agent", None), "_llm", None)
+    fallback_routes = {}
+    for profile, adapter in getattr(runtime_llm, "clients", {}).items():
+        fallback = getattr(adapter, "fallback", None)
+        if fallback is not None:
+            fallback_routes[profile] = {
+                "provider": fallback.route.provider,
+                "model": fallback.route.model,
+            }
     embedding_warmup = getattr(app.state, "embedding_warmup", {"ready": False, "warmup_ms": 0.0})
     return {
         "status": "ready" if vector_count and knowledge_count else "degraded",
@@ -194,6 +204,7 @@ async def ready():
             profile: {"provider": route.provider, "model": route.model}
             for profile, route in routes.items()
         },
+        "fallback_routes": fallback_routes,
     }
 
 
