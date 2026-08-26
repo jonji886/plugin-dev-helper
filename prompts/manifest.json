@@ -1,0 +1,28 @@
+{
+  "developer_qa": {
+    "v1": {
+      "status": "active",
+      "created_at": "2026-08-24",
+      "description": "基于 SDK 知识库和可验证 Citation 的开发者问答 Prompt。"
+    },
+    "v2": {
+      "status": "candidate",
+      "created_at": "2026-08-24",
+      "description": "收紧证据边界、代码示例和信息不足时拒答行为的候选版本。"
+    }
+  },
+  "query_rewrite": {
+    "v1": {
+      "status": "active",
+      "created_at": "2026-08-24",
+      "description": "将多轮对话中的当前问题重写为独立、可检索的问题。"
+    }
+  },
+  "intent_classifier": {
+    "v1": {
+      "status": "active",
+      "created_at": "2026-08-24",
+      "description": "识别 API、SDK、参数、代码和通用问题，以及复杂度和推理需求。"
+    }
+  }
+}

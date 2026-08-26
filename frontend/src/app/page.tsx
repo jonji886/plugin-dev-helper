@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { ChatMessage as ChatMessageType, HistoryMessage } from "@/types/chat";
+import { ChatMessage as ChatMessageType, FeedbackReason, HistoryMessage } from "@/types/chat";
 import { sendMessage, getHistory, submitFeedback } from "@/services/chatService";
 import ChatMessage from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
@@ -41,14 +41,14 @@ export default function Home() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = useCallback(async (query: string) => {
+  const handleSend = useCallback(async (query: string, images: string[] = []) => {
     // Add user message immediately
-    const userMsg: ChatMessageType = { role: "user", content: query };
+    const userMsg: ChatMessageType = { role: "user", content: query, images };
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
     try {
-      const res = await sendMessage(query, sessionId);
+      const res = await sendMessage(query, sessionId, images);
       const assistantMsg: ChatMessageType = {
         role: "assistant",
         content: res.answer,
@@ -74,9 +74,9 @@ export default function Home() {
     setSessionId(undefined);
   }, []);
 
-  const handleFeedback = useCallback(async (requestId: string, helpful: boolean) => {
+  const handleFeedback = useCallback(async (requestId: string, helpful: boolean, reason?: FeedbackReason, comment = "") => {
     try {
-      await submitFeedback(requestId, helpful);
+      await submitFeedback(requestId, helpful, reason, comment);
     } catch (error) {
       console.error("提交反馈失败", error);
     }

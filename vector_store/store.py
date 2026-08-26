@@ -8,6 +8,8 @@ import json
 import os
 import re
 import traceback
+import threading
+from time import perf_counter
 from pathlib import Path
 from typing import Optional
 
@@ -50,19 +52,41 @@ class VectorStore:
 
         # Embedding 模型（延迟加载）
         self._embedding_model = None
+        self._embedding_lock = threading.RLock()
+        self._embedding_warmed_up = False
+        self._embedding_warmup_ms = 0.0
         self._knowledge_index = None
 
     @property
     def embedding_model(self):
         if self._embedding_model is None:
-            try:
-                from sentence_transformers import SentenceTransformer
-                self._embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-            except Exception as e:
-                print(f"[vector] embedding model load failed: {e}")
-                print(traceback.format_exc())
-                raise
+            with self._embedding_lock:
+                if self._embedding_model is None:
+                    try:
+                        from sentence_transformers import SentenceTransformer
+                        self._embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+                    except Exception as e:
+                        print(f"[vector] embedding model load failed: {e}")
+                        print(traceback.format_exc())
+                        raise
         return self._embedding_model
+
+    def warmup(self, text: str = "插件开发 SDK 预热") -> dict[str, float | bool]:
+        """Load the embedding model and run one inference before user traffic."""
+        with self._embedding_lock:
+            if self._embedding_warmed_up:
+                return {"ready": True, "warmup_ms": self._embedding_warmup_ms}
+
+            started = perf_counter()
+            self.embedding_model.encode([text], show_progress_bar=False)
+            self._embedding_warmup_ms = round((perf_counter() - started) * 1000, 2)
+            self._embedding_warmed_up = True
+            print(f"[vector] embedding warmup completed in {self._embedding_warmup_ms} ms")
+            return {"ready": True, "warmup_ms": self._embedding_warmup_ms}
+
+    @property
+    def embedding_ready(self) -> bool:
+        return self._embedding_warmed_up
 
     def build_index(self, knowledge_index: list[dict], knowledge_dir: Optional[str] = None):
         """从知识库索引构建向量索引"""

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "routing-general-001",
+    "category": "general_qa",
+    "query": "插件开发助手主要能帮助开发者解决哪些问题？",
+    "expected_role": "main",
+    "images": []
+  },
+  {
+    "id": "routing-code-001",
+    "category": "code",
+    "query": "请给出 TypeScript 调用 IDP.Miniapp.exit 的完整示例，并说明异常处理方式。",
+    "expected_role": "reason",
+    "images": []
+  },
+  {
+    "id": "routing-reason-001",
+    "category": "complex_reasoning",
+    "query": "请分步骤分析：如果保存设计方案成功但随后读取不到最新版本，可能有哪些原因，应该如何排查？",
+    "expected_role": "reason",
+    "images": []
+  },
+  {
+    "id": "routing-vision-001",
+    "category": "vision",
+    "query": "请识别这张截图中的主要颜色、布局和明显的按钮元素。",
+    "expected_role": "vision",
+    "image_fixture": "solid_32x32_png"
+  }
+]

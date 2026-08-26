@@ -58,7 +58,7 @@ Vector Store (Chroma / 免费Embedding)
         ↓
 LangGraph Agent
         ↓
-DeepSeek v4
+Router / Main / Reason / Vision（SiliconFlow OpenAI-compatible）
         ↓
 FastAPI 后端
         ↓
@@ -70,7 +70,7 @@ Next.js / React 前端聊天界面
 # 4. 技术栈
 
 * 后端：Python 3.11 + FastAPI
-* LLM：DeepSeek v4
+* LLM：SiliconFlow 中转的四角色模型：Router、Main、Reason、Vision
 * Agent：LangGraph + LangChain
 * Embedding：`sentence-transformers/all-MiniLM-L6-v2`（免费）
 * Vector Store：Chroma
@@ -176,11 +176,11 @@ IDP.DB.Types.ElementId
 
 # 9. LangGraph Agent 节点
 
-1. Intent Router：识别问题类型（API/SDK/参数/代码）
+1. Intent Router：使用 Router 角色识别问题类型、复杂度、置信度和是否需要深度推理
 2. Query Rewrite：补全上下文
 3. Retrieve：知识库检索 TopK
 4. Graph Expansion：依赖链展开
-5. Answer Generator：生成答案 + 代码示例；后端基于检索结果附加结构化来源
+5. Answer Generator：常规问题使用 Main，代码/高复杂度使用 Reason，带图片请求使用 Vision；后端基于检索结果附加结构化来源
 6. Memory：会话历史管理
 
 ---

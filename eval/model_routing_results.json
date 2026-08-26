@@ -1,0 +1,191 @@
+{
+  "dataset": "eval/model_routing_cases.json",
+  "base_url": "http://127.0.0.1:8000",
+  "cases": [
+    {
+      "id": "routing-general-001",
+      "category": "general_qa",
+      "expected_role": "main",
+      "actual_role": "main",
+      "role_match": true,
+      "request_id": "c5025e0a-2d24-420b-9125-6b9e06b0623a",
+      "provider": "siliconflow",
+      "model": "deepseek-ai/DeepSeek-V4-Flash",
+      "image_count": 0,
+      "elapsed_ms": 15418.9,
+      "status": "success"
+    },
+    {
+      "id": "routing-code-001",
+      "category": "code",
+      "expected_role": "reason",
+      "actual_role": "reason",
+      "role_match": true,
+      "request_id": "f0e05e6f-a208-41b3-b3cb-5eda70099e7d",
+      "provider": "siliconflow",
+      "model": "Pro/zai-org/GLM-5.1",
+      "image_count": 0,
+      "elapsed_ms": 27860.28,
+      "status": "success"
+    },
+    {
+      "id": "routing-reason-001",
+      "category": "complex_reasoning",
+      "expected_role": "reason",
+      "actual_role": "reason",
+      "role_match": true,
+      "request_id": "407a40ff-7eb2-4fc2-b035-a0889f32f89d",
+      "provider": "siliconflow",
+      "model": "Pro/zai-org/GLM-5.1",
+      "image_count": 0,
+      "elapsed_ms": 56022.76,
+      "status": "success"
+    },
+    {
+      "id": "routing-vision-001",
+      "category": "vision",
+      "expected_role": "vision",
+      "actual_role": "vision",
+      "role_match": true,
+      "request_id": "8da68711-5845-4a7f-b965-293545568c92",
+      "provider": "siliconflow",
+      "model": "Qwen/Qwen3-VL-32B-Instruct",
+      "image_count": 1,
+      "elapsed_ms": 28759.4,
+      "status": "success"
+    }
+  ],
+  "summary": {
+    "total_cases": 4,
+    "successful_cases": 4,
+    "failed_cases": 0,
+    "batch_failure_rate": 0.0,
+    "role_matches": 4,
+    "role_match_rate": 1.0
+  },
+  "metrics_delta": {
+    "total_requests": 4.0,
+    "successful_requests": 4.0,
+    "failed_requests": 0.0,
+    "total_tokens": 12103.0,
+    "estimated_cost": 0.101654
+  },
+  "metrics_before": {
+    "total_requests": 19,
+    "window_limit": 1000,
+    "successful_requests": 19,
+    "failed_requests": 0,
+    "success_rate": 1.0,
+    "failure_rate": 0.0,
+    "p50_latency_ms": 27116.28,
+    "p95_latency_ms": 66946.11,
+    "avg_retrieval_ms": 5315.01,
+    "avg_llm_ms": 13981.98,
+    "citation_rate": 1.0,
+    "total_tokens": 92168,
+    "estimated_cost": 0.06111064,
+    "feedback_total": 2,
+    "helpful_rate": 0.0,
+    "by_model_role": {
+      "main": {
+        "total_requests": 7,
+        "successful_requests": 7,
+        "failed_requests": 0,
+        "failure_rate": 0.0,
+        "avg_total_ms": 51947.37,
+        "avg_llm_ms": 20481.13,
+        "total_tokens": 44705,
+        "estimated_cost": 0.025302
+      },
+      "reason": {
+        "total_requests": 4,
+        "successful_requests": 4,
+        "failed_requests": 0,
+        "failure_rate": 0.0,
+        "avg_total_ms": 33014.07,
+        "avg_llm_ms": 18683.53,
+        "total_tokens": 29947,
+        "estimated_cost": 0.033348
+      },
+      "unknown": {
+        "total_requests": 6,
+        "successful_requests": 6,
+        "failed_requests": 0,
+        "failure_rate": 0.0,
+        "avg_total_ms": 13258.91,
+        "avg_llm_ms": 3629.56,
+        "total_tokens": 2994,
+        "estimated_cost": 0.00047264
+      },
+      "vision": {
+        "total_requests": 2,
+        "successful_requests": 2,
+        "failed_requests": 0,
+        "failure_rate": 0.0,
+        "avg_total_ms": 28407.35,
+        "avg_llm_ms": 12889.13,
+        "total_tokens": 14522,
+        "estimated_cost": 0.001988
+      }
+    }
+  },
+  "metrics_after": {
+    "total_requests": 23,
+    "window_limit": 1000,
+    "successful_requests": 23,
+    "failed_requests": 0,
+    "success_rate": 1.0,
+    "failure_rate": 0.0,
+    "p50_latency_ms": 27424.11,
+    "p95_latency_ms": 56703.04,
+    "avg_retrieval_ms": 4410.46,
+    "avg_llm_ms": 14968.46,
+    "citation_rate": 1.0,
+    "total_tokens": 104271,
+    "estimated_cost": 0.16276464,
+    "feedback_total": 2,
+    "helpful_rate": 0.0,
+    "by_model_role": {
+      "main": {
+        "total_requests": 8,
+        "successful_requests": 8,
+        "failed_requests": 0,
+        "failure_rate": 0.0,
+        "avg_total_ms": 47380.42,
+        "avg_llm_ms": 18649.62,
+        "total_tokens": 48643,
+        "estimated_cost": 0.029774
+      },
+      "reason": {
+        "total_requests": 6,
+        "successful_requests": 6,
+        "failed_requests": 0,
+        "failure_rate": 0.0,
+        "avg_total_ms": 35987.21,
+        "avg_llm_ms": 22327.02,
+        "total_tokens": 36798,
+        "estimated_cost": 0.128502
+      },
+      "unknown": {
+        "total_requests": 6,
+        "successful_requests": 6,
+        "failed_requests": 0,
+        "failure_rate": 0.0,
+        "avg_total_ms": 13258.91,
+        "avg_llm_ms": 3629.56,
+        "total_tokens": 2994,
+        "estimated_cost": 0.00047264
+      },
+      "vision": {
+        "total_requests": 3,
+        "successful_requests": 3,
+        "failed_requests": 0,
+        "failure_rate": 0.0,
+        "avg_total_ms": 28521.24,
+        "avg_llm_ms": 13112.74,
+        "total_tokens": 15836,
+        "estimated_cost": 0.004016
+      }
+    }
+  }
+}

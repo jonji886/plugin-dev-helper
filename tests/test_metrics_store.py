@@ -72,6 +72,26 @@ class MetricsStoreTests(unittest.TestCase):
             "request_error", "no_retrieval"
         ])
 
+    def test_metrics_include_failure_and_model_role_breakdown(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = MetricsStore(Path(directory) / "app.sqlite3")
+            store.record_request({
+                "request_id": "main-ok", "session_id": "a1b2c3d4", "query": "常规问题",
+                "status": "success", "model_role": "main", "total_ms": 100,
+                "llm_ms": 80, "total_tokens": 20, "estimated_cost": 0.01,
+            })
+            store.record_request({
+                "request_id": "reason-fail", "session_id": "a1b2c3d4", "query": "复杂问题",
+                "status": "error", "model_role": "reason", "total_ms": 200,
+            })
+            metrics = store.metrics()
+
+        self.assertEqual(metrics["failed_requests"], 1)
+        self.assertEqual(metrics["failure_rate"], 0.5)
+        self.assertEqual(metrics["by_model_role"]["main"]["total_tokens"], 20)
+        self.assertEqual(metrics["by_model_role"]["reason"]["failed_requests"], 1)
+        self.assertEqual(metrics["by_model_role"]["reason"]["failure_rate"], 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()
