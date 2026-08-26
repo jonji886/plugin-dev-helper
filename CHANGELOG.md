@@ -8,6 +8,7 @@
 
 ### Added
 - 新增 `LLMAdapter`、`OpenAICompatibleAdapter`、`InstrumentedAdapter` 和 `FailoverAdapter`，将 SiliconFlow 与官方 DeepSeek 的客户端、计费、可观测性和瞬时错误故障转移从角色路由中解耦
+- 新增请求级故障转移验收测试，覆盖超时切换、响应路由元数据、token/cost 指标隔离和认证错误失败率；修复 Agent 异常被错误记为成功的问题
 - 增加官方 DeepSeek `deepseek-v4-flash` 兜底映射、超时/重试配置和价格记录；Vision 默认不做不确定的图片能力兜底
 - 更新 SiliconFlow 四角色价格配置：Router/Main/Reason/Vision 采用官方价格中心数据，GLM-5.1 Pro 支持 32K 输入分档，并记录价格来源与抓取日期
 - 新增 `prompts/manifest.json`，为每个 Prompt 版本维护 status、created_at 和 description；Trace 同步记录 Prompt 元数据

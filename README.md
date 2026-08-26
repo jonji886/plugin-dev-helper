@@ -167,6 +167,8 @@ python3 scripts/check_retrieval_gate.py
 
 最近一次真实路由验收（2026-08-25）为 4/4 角色命中、0 失败：常规问答 → Main（DeepSeek V4 Flash），代码 → Reason（GLM-5.1），复杂推理 → Reason（GLM-5.1），截图识别 → Vision（Qwen3-VL-32B）。本批 `/api/metrics` 增量为 12,103 tokens、估算成本 ¥0.101654；全窗口快照为 P50 27.42s、P95 56.70s、失败率 0%。
 
+故障转移请求级验收使用 [`tests/test_failover_request.py`](tests/test_failover_request.py)：通过注入 SiliconFlow 超时验证 `/api/chat` 会返回官方 DeepSeek 的 provider/model/route reason，并在 `/api/metrics` 中只记录一次请求的 token、成本和成功状态；同时验证 401 认证错误不会切换且会正确计入失败率。该测试不调用真实模型、不消耗额度；真实 Provider 故障演练应在预发布环境通过受控超时配置执行。
+
 ## 7. Observability
 
 Langfuse 是可选依赖和可选开关：

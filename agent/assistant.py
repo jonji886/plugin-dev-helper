@@ -1080,6 +1080,7 @@ class AgentRunner:
             "output_tokens": result.get("output_tokens", 0),
             "total_tokens": result.get("total_tokens", 0),
             "estimated_cost": result.get("estimated_cost", 0.0),
+            "error_type": result.get("error_type", ""),
             "retrieved_documents": [
                 doc.get("id") or doc.get("metadata", {}).get("id", "")
                 for doc in result.get("retrieved_docs", [])

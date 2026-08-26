@@ -237,8 +237,9 @@ async def chat(request: ChatRequest):
         chat_args = (query, request.session_id, request_id)
         chat_kwargs = {"images": request.images} if request.images else {}
         result = await asyncio.to_thread(agent.chat, *chat_args, **chat_kwargs)
-        status = "success"
-        error_message = None
+        error_type = result.get("error_type", "")
+        status = "error" if error_type else "success"
+        error_message = error_type or None
     except Exception as error:
         status = "error"
         error_message = str(error)
