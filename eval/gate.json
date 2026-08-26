@@ -1,0 +1,5 @@
+{
+  "recall_at_5_drop": 0.03,
+  "correctness_drop": 0.03,
+  "citation_validity_min": 0.90
+}

@@ -1,13 +1,14 @@
 "use client";
 
-import { ChatMessage as ChatMessageType } from "@/types/chat";
+import { ChatMessage as ChatMessageType, FeedbackReason } from "@/types/chat";
 import { Children, isValidElement } from "react";
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 interface Props {
   message: ChatMessageType;
-  onFeedback?: (requestId: string, helpful: boolean) => void;
+  onFeedback?: (requestId: string, helpful: boolean, reason?: FeedbackReason, comment?: string) => void;
 }
 
 function CopyButton({ text, tone = "dark" }: { text: string; tone?: "dark" | "light" }) {
@@ -28,6 +29,19 @@ function CopyButton({ text, tone = "dark" }: { text: string; tone?: "dark" | "li
 
 export default function ChatMessage({ message, onFeedback }: Props) {
   const isUser = message.role === "user";
+  const [feedbackState, setFeedbackState] = useState<"idle" | "positive" | "negative" | "submitted">("idle");
+  const [reason, setReason] = useState<FeedbackReason>("wrong_answer");
+  const [comment, setComment] = useState("");
+
+  const submit = (helpful: boolean) => {
+    if (!message.requestId || !onFeedback) return;
+    if (!helpful && feedbackState !== "negative") {
+      setFeedbackState("negative");
+      return;
+    }
+    onFeedback(message.requestId, helpful, helpful ? undefined : reason, helpful ? "" : comment);
+    setFeedbackState(helpful ? "positive" : "submitted");
+  };
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-5`}>
@@ -39,7 +53,16 @@ export default function ChatMessage({ message, onFeedback }: Props) {
         }`}
       >
         {isUser ? (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+          <>
+            {message.images && message.images.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {message.images.map((image, index) => (
+                  <img key={`${image.slice(0, 30)}-${index}`} src={image} alt={`用户图片 ${index + 1}`} className="max-h-48 max-w-xs rounded-lg object-contain" />
+                ))}
+              </div>
+            )}
+            {message.content && <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>}
+          </>
         ) : (
           <>
             <div className="markdown-content text-sm leading-7">
@@ -131,19 +154,35 @@ export default function ChatMessage({ message, onFeedback }: Props) {
               <div className="mt-4 flex items-center justify-end gap-2 border-t border-zinc-200 pt-3 text-xs text-zinc-500 dark:border-zinc-700">
                 <span className="mr-auto">这条回答有帮助吗？</span>
                 <button
-                  onClick={() => onFeedback(message.requestId!, true)}
+                  onClick={() => submit(true)}
                   className="rounded px-2 py-1 hover:bg-emerald-100 hover:text-emerald-700 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
                 >
-                  有帮助
+                  👍 有帮助
                 </button>
                 <button
-                  onClick={() => onFeedback(message.requestId!, false)}
+                  onClick={() => submit(false)}
                   className="rounded px-2 py-1 hover:bg-rose-100 hover:text-rose-700 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
                 >
-                  无帮助
+                  👎 没帮助
                 </button>
               </div>
             )}
+            {message.requestId && feedbackState === "negative" && (
+              <div className="mt-2 rounded-lg bg-white/70 p-3 text-xs dark:bg-zinc-900/50">
+                <p className="mb-2 font-medium text-zinc-700 dark:text-zinc-200">可以告诉我们原因吗？</p>
+                <select value={reason} onChange={(event) => setReason(event.target.value as FeedbackReason)} className="mb-2 w-full rounded border border-zinc-300 bg-transparent px-2 py-1.5 dark:border-zinc-600">
+                  <option value="wrong_answer">回答错误</option>
+                  <option value="retrieval_wrong">没有找到正确文档</option>
+                  <option value="citation_wrong">引用错误</option>
+                  <option value="code_wrong">代码示例错误</option>
+                  <option value="incomplete">回答不完整</option>
+                  <option value="other">其他</option>
+                </select>
+                <textarea value={comment} onChange={(event) => setComment(event.target.value)} placeholder="补充说明（可选）" maxLength={1000} className="mb-2 w-full resize-none rounded border border-zinc-300 bg-transparent px-2 py-1.5 dark:border-zinc-600" rows={2} />
+                <button onClick={() => submit(false)} className="rounded bg-zinc-900 px-3 py-1.5 text-white dark:bg-zinc-100 dark:text-zinc-900">提交反馈</button>
+              </div>
+            )}
+            {feedbackState === "submitted" && <p className="mt-2 text-right text-xs text-zinc-500">感谢反馈，已记录为待复核案例。</p>}
           </>
         )}
       </div>

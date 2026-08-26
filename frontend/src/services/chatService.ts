@@ -1,4 +1,4 @@
-import { ChatResponse, HistoryMessage, SessionInfo } from "@/types/chat";
+import { Badcase, ChatResponse, HistoryMessage, SessionInfo } from "@/types/chat";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -34,12 +34,13 @@ async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Pro
 
 export async function sendMessage(
   query: string,
-  sessionId?: string
+  sessionId?: string,
+  images: string[] = []
 ): Promise<ChatResponse> {
   return requestJson<ChatResponse>(`${API_BASE}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, session_id: sessionId }),
+    body: JSON.stringify({ query, session_id: sessionId, images }),
   });
 }
 
@@ -60,11 +61,24 @@ export async function clearHistory(sessionId?: string): Promise<{ message: strin
 export async function submitFeedback(
   requestId: string,
   helpful: boolean,
+  reason = "",
   comment = ""
 ): Promise<void> {
   await requestJson(`${API_BASE}/api/chat/feedback`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ request_id: requestId, helpful, comment }),
+    body: JSON.stringify({ request_id: requestId, helpful, reason, comment }),
+  });
+}
+
+export async function getBadcases(): Promise<Badcase[]> {
+  return requestJson<Badcase[]>(`${API_BASE}/api/badcases`);
+}
+
+export async function updateBadcase(id: number, status: Badcase["status"]): Promise<void> {
+  await requestJson(`${API_BASE}/api/badcases/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
   });
 }

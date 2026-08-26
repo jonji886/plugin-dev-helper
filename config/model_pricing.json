@@ -1,0 +1,69 @@
+{
+  "_metadata": {
+    "description": "模型输入/输出价格，金额单位由每个条目的 currency 声明；SiliconFlow 价格来自官方价格中心。",
+    "siliconflow_source": "https://cloud-rd.siliconflow.cn/pricing",
+    "siliconflow_retrieved_at": "2026-08-24",
+    "siliconflow_unit": "per_1m_tokens"
+  },
+  "deepseek:deepseek-chat": {
+    "currency": "USD",
+    "input_price": 0.14,
+    "output_price": 0.28,
+    "input_unit": 1000000,
+    "output_unit": 1000000
+  },
+  "deepseek:deepseek-reasoner": {
+    "currency": "USD",
+    "input_price": 0.55,
+    "output_price": 2.19,
+    "input_unit": 1000000,
+    "output_unit": 1000000
+  },
+  "siliconflow:Qwen/Qwen3-8B": {
+    "currency": "CNY",
+    "input_price": 0.0,
+    "output_price": 0.0,
+    "input_unit": 1000000,
+    "output_unit": 1000000,
+    "source": "https://cloud-rd.siliconflow.cn/pricing",
+    "source_retrieved_at": "2026-08-24",
+    "notes": "官方价格中心当前显示为免费"
+  },
+  "siliconflow:deepseek-ai/DeepSeek-V4-Flash": {
+    "currency": "CNY",
+    "input_price": 1.0,
+    "output_price": 2.0,
+    "input_unit": 1000000,
+    "output_unit": 1000000,
+    "source": "https://cloud-rd.siliconflow.cn/pricing",
+    "source_retrieved_at": "2026-08-24"
+  },
+  "siliconflow:Pro/zai-org/GLM-5.1": {
+    "currency": "CNY",
+    "input_unit": 1000000,
+    "output_unit": 1000000,
+    "tiers": [
+      {
+        "max_input_tokens": 32000,
+        "input_price": 6.0,
+        "output_price": 24.0
+      },
+      {
+        "input_price": 8.0,
+        "output_price": 28.0
+      }
+    ],
+    "source": "https://cloud-rd.siliconflow.cn/pricing",
+    "source_retrieved_at": "2026-08-24",
+    "notes": "官方价格中心按输入 Token 是否超过 32K 分档"
+  },
+  "siliconflow:Qwen/Qwen3-VL-32B-Instruct": {
+    "currency": "CNY",
+    "input_price": 1.0,
+    "output_price": 4.0,
+    "input_unit": 1000000,
+    "output_unit": 1000000,
+    "source": "https://cloud-rd.siliconflow.cn/pricing",
+    "source_retrieved_at": "2026-08-24"
+  }
+}

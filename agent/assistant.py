@@ -10,10 +10,13 @@ Agent 节点:
 6. Memory: 会话管理
 """
 
+from __future__ import annotations
+
 import json
 import os
 import sqlite3
 import traceback
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TypedDict, Optional, Annotated, Sequence
 from datetime import datetime, timezone
@@ -26,6 +29,73 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, Base
 from langchain_openai import ChatOpenAI
 
 from vector_store import VectorStore
+from app.llm_usage import (
+    calculate_cost,
+    current_request_usage,
+    extract_usage,
+    record_request_usage,
+    reset_request_usage,
+    start_request_usage,
+)
+from app.model_router import ModelRoute, ModelRouter, infer_task_type
+from app.observability import Observability, get_observability
+from app.prompt_registry import PromptRegistry
+
+
+def _answer_context_limit(default: int = 6000) -> int:
+    """Bound the evidence sent to the answer model."""
+    try:
+        return max(2000, int(os.getenv("ANSWER_CONTEXT_MAX_CHARS", str(default))))
+    except (TypeError, ValueError):
+        return default
+
+
+@contextmanager
+def _node_span(state: dict, name: str):
+    observability = state.get("observability") or get_observability()
+    with observability.span(state.get("trace") or object(), name, {
+        "query": state.get("current_query", ""),
+        "session_id": state.get("session_id", ""),
+        "trace_id": state.get("trace_id", ""),
+    }) as span:
+        yield span
+
+
+def _retrieval_observation(results: list[dict]) -> dict:
+    """Extract bounded, non-sensitive retrieval facts for trace inspection."""
+    document_ids = []
+    scores = []
+    source_types = []
+    knowledge_versions = []
+    for result in results:
+        metadata = result.get("metadata", {}) or {}
+        document_ids.append(result.get("id") or metadata.get("id", ""))
+        score = result.get("score", metadata.get("score"))
+        if score is not None:
+            scores.append(score)
+        source_type = metadata.get("type") or metadata.get("source", "")
+        if source_type and source_type not in source_types:
+            source_types.append(source_type)
+        version = metadata.get("sdkVersion") or metadata.get("sdk_version", "")
+        if version and version not in knowledge_versions:
+            knowledge_versions.append(version)
+    return {
+        "retrieved_document_ids": document_ids,
+        "retrieved_chunks": len(results),
+        "retrieval_scores": scores,
+        "source_type": source_types,
+        "knowledge_version": knowledge_versions,
+        "rerank_result": {"strategy": "hybrid_merge", "applied": False, "count": len(results)},
+    }
+
+
+def _citation_validity(citations: list[dict], retrieved_docs: list[dict]) -> bool:
+    """Citations are valid when every citation points to a retrieved document."""
+    retrieved_ids = {
+        doc.get("id") or doc.get("metadata", {}).get("id", "")
+        for doc in retrieved_docs
+    }
+    return all(citation.get("id") in retrieved_ids for citation in citations)
 
 
 # ========== 辅助函数 ==========
@@ -91,6 +161,10 @@ class AgentState(TypedDict):
     current_query: str  # 当前用户问题
     rewritten_query: str  # 重写后的问题
     intent: str  # 意图: api/sdk/param/code/general
+    complexity: str
+    route_confidence: float
+    need_reason: bool
+    images: list[str]
     retrieved_docs: list[dict]  # 检索到的文档
     expanded_context: str  # 展开后的上下文
     answer: str  # 生成的回答
@@ -98,28 +172,177 @@ class AgentState(TypedDict):
     retrieval_ms: float
     llm_ms: float
     session_id: str  # 会话 ID
+    trace_id: str
+    trace: object
+    observability: Observability
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+    estimated_cost: float
 
 
 # ========== DeepSeek LLM 初始化 ==========
 
-def get_llm(timeout_seconds: float = 30.0, max_retries: int = 2):
-    """获取 DeepSeek LLM 实例"""
-    api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+class InstrumentedLLM:
+    """Small provider-neutral wrapper collecting usage and prompt metadata."""
+
+    def __init__(self, llm, route: ModelRoute, prompt_registry: PromptRegistry,
+                 observability: Observability, trace: object | None = None,
+                 prompt_version: str = "v1", temperature: float = 0.1,
+                 max_tokens: int = 4096, max_retries: int = 2):
+        self.llm = llm
+        self.route = route
+        self.prompt_registry = prompt_registry
+        self.observability = observability
+        self.trace = trace
+        self.prompt_version = prompt_version
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.max_retries = max_retries
+        self.stats = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0,
+                      "estimated_cost": 0.0, "prompt_versions": {}}
+
+    def invoke(self, messages, prompt_name: str = "developer_qa", trace: object | None = None,
+               task_type: str = "general"):
+        prompt_version = self.prompt_version
+        if prompt_name != "developer_qa":
+            prompt_version = "v1"
+        prompt_metadata = self.prompt_registry.metadata(prompt_name, prompt_version)
+        prompt_text = "\n".join(str(getattr(message, "content", "")) for message in messages)
+        with self.observability.span(trace or self.trace or object(), f"llm:{prompt_name}", {
+            "prompt_name": prompt_name, "prompt_version": prompt_version,
+            "prompt_status": prompt_metadata.get("status", ""),
+            "provider": self.route.provider, "model": self.route.model,
+            "route_reason": self.route.reason, "model_role": self.route.role,
+            "temperature": self.temperature, "max_tokens": self.max_tokens,
+        }) as span:
+            response = self.llm.invoke(messages)
+            output_text = str(getattr(response, "content", ""))
+            usage = extract_usage(response, prompt_text, output_text)
+            self.stats["input_tokens"] += usage["input_tokens"]
+            self.stats["output_tokens"] += usage["output_tokens"]
+            self.stats["total_tokens"] += usage["total_tokens"]
+            request_cost = calculate_cost(
+                self.route.provider, self.route.model,
+                usage["input_tokens"], usage["output_tokens"],
+            )
+            self.stats["estimated_cost"] += request_cost
+            record_request_usage(usage, request_cost)
+            self.stats["prompt_versions"][prompt_name] = prompt_version
+            self.observability.update(span, usage=usage, model=self.route.model,
+                                      provider=self.route.provider,
+                                      prompt_name=prompt_name,
+                                      prompt_version=prompt_version,
+                                      prompt_status=prompt_metadata.get("status", ""),
+                                      route_reason=self.route.reason,
+                                      model_role=self.route.role,
+                                      temperature=self.temperature,
+                                      estimated_cost=request_cost)
+            return response
+
+
+class RoutedLLM:
+    """Selects a configured profile per invocation while preserving one app API."""
+
+    def __init__(self, clients: dict[str, InstrumentedLLM], router: ModelRouter):
+        self.clients = clients
+        self.router = router
+        self.last_route = next(iter(clients.values())).route if clients else None
+
+    @property
+    def stats(self) -> dict:
+        request_usage = current_request_usage()
+        if request_usage is not None:
+            return request_usage
+        stats = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "estimated_cost": 0.0}
+        for client in self.clients.values():
+            for key in stats:
+                stats[key] += client.stats.get(key, 0)
+        return stats
+
+    def invoke(self, messages, prompt_name: str = "developer_qa", trace: object | None = None,
+               task_type: str | None = None, has_images: bool = False,
+               complexity: str = "normal", confidence: float = 1.0,
+               need_reason: bool = False):
+        text = "\n".join(str(getattr(message, "content", "")) for message in messages)
+        task = task_type or "general"
+        if prompt_name == "intent_classifier":
+            task = "intent_classifier"
+        route = self.router.route(
+            task,
+            len(text),
+            complexity=complexity,
+            has_image=has_images,
+            confidence=confidence,
+            need_reason=need_reason,
+        )
+        client = self.clients.get(route.profile) or self.clients.get("default")
+        if client is None:
+            client = next(iter(self.clients.values()))
+        self.last_route = ModelRoute(
+            provider=client.route.provider,
+            model=client.route.model,
+            reason=route.reason,
+            profile=route.profile,
+            role=route.role,
+        )
+        return client.invoke(messages, prompt_name=prompt_name, trace=trace, task_type=task)
+
+
+def _provider_runtime_config(provider: str) -> tuple[str, str | None]:
+    """Resolve credentials and base URL for an OpenAI-compatible provider."""
+    normalized = provider.lower().replace("-", "").replace("_", "")
+    if normalized == "siliconflow":
+        return (
+            os.environ.get("SILICONFLOW_API_KEY", "").strip(),
+            os.environ.get("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1").strip(),
+        )
+    if normalized == "deepseek":
+        return (
+            os.environ.get("DEEPSEEK_API_KEY", "").strip(),
+            os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1").strip(),
+        )
+    if normalized == "openai":
+        return (
+            os.environ.get("OPENAI_API_KEY", "").strip(),
+            os.environ.get("OPENAI_BASE_URL", "").strip() or None,
+        )
+
+    prefix = provider.upper().replace("-", "_")
+    return (
+        os.environ.get(f"{prefix}_API_KEY", "").strip(),
+        os.environ.get(f"{prefix}_BASE_URL", "").strip() or None,
+    )
+
+
+def get_llm(timeout_seconds: float = 30.0, max_retries: int = 2,
+            route: ModelRoute | None = None, prompt_registry: PromptRegistry | None = None,
+            observability: Observability | None = None, trace: object | None = None,
+            prompt_version: str = "v1", max_tokens: int = 4096):
+    """获取 OpenAI-compatible LLM；未配置密钥时保留本地兜底模式。"""
+    route = route or ModelRoute("deepseek", "deepseek-chat", "default", "default")
+    provider = route.provider.lower()
+    api_key, base_url = _provider_runtime_config(provider)
     if api_key:
-        print("[env] DEEPSEEK_API_KEY 已加载")
+        print(f"[env] {provider} API key 已加载，model={route.model}")
     else:
-        print("[env] DEEPSEEK_API_KEY 未加载")
-        print("[warn] DEEPSEEK_API_KEY 未设置，使用本地兜底模式")
+        print(f"[env] {provider} API key 未加载")
+        print("[warn] API key 未设置，使用本地兜底模式")
         return None
 
-    return ChatOpenAI(
-        model="deepseek-chat",
+    llm = ChatOpenAI(
+        model=route.model,
         api_key=api_key,
-        base_url="https://api.deepseek.com/v1",
+        base_url=base_url,
         temperature=0.1,
-        max_tokens=4096,
+        max_tokens=max_tokens,
         timeout=timeout_seconds,
         max_retries=max_retries,
+    )
+    return InstrumentedLLM(
+        llm, route, prompt_registry or PromptRegistry(),
+        observability or get_observability(), trace, prompt_version,
+        temperature=0.1, max_tokens=max_tokens, max_retries=max_retries,
     )
 
 
@@ -132,30 +355,72 @@ class IntentRouter:
         self.llm = llm
 
     def __call__(self, state: AgentState) -> dict:
+        with _node_span(state, "intent_router") as span:
+            result = self._run(state)
+            observability = state.get("observability") or get_observability()
+            observability.update(span, intent=result.get("intent", ""),
+                                 complexity=result.get("complexity", ""),
+                                 confidence=result.get("route_confidence", 0.0),
+                                 need_reason=result.get("need_reason", False))
+            return result
+
+    @staticmethod
+    def _deterministic_fallback(query: str) -> dict:
+        """Keep routing available when the remote Router times out or misformats JSON."""
+        task = infer_task_type(query)
+        if task == "code":
+            return {"intent": "code", "complexity": "high", "route_confidence": 0.85, "need_reason": True}
+        if task == "api":
+            return {"intent": "api", "complexity": "normal", "route_confidence": 0.85, "need_reason": False}
+        return {"intent": "general", "complexity": "normal", "route_confidence": 0.8, "need_reason": False}
+
+    def _run(self, state: AgentState) -> dict:
         query = state["current_query"]
-        prompt = f"""分析以下问题的意图，只返回一个词:
+        prompt = f"""分析以下问题，并严格只返回 JSON，不要 Markdown：
+{{"intent":"general","complexity":"normal","confidence":0.9,"need_reason":false}}
+
 - api: 询问 API 使用方法
 - sdk: 询问 SDK 功能
 - param: 询问参数说明
 - code: 需要代码示例
 - general: 其他一般问题
+- complexity 只能是 low/normal/high；需要复杂推理或多步分析时 need_reason 为 true
 
 问题: {query}
-意图:"""
+        JSON:"""
         if self.llm is None:
-            return {"intent": "general"}
+            return self._deterministic_fallback(query)
 
         try:
-            response = self.llm.invoke([HumanMessage(content=prompt)])
-            intent = response.content.strip().lower()
+            response = self.llm.invoke(
+                [HumanMessage(content=prompt)],
+                prompt_name="intent_classifier",
+                trace=state.get("trace"),
+                task_type="intent_classifier",
+            )
+            raw = response.content.strip()
+            match = __import__("re").search(r"\{.*\}", raw, __import__("re").DOTALL)
+            parsed = json.loads(match.group(0) if match else raw)
+            intent = str(parsed.get("intent", "general")).strip().lower()
             if intent not in ("api", "sdk", "param", "code", "general"):
                 intent = "general"
+            complexity = str(parsed.get("complexity", "normal")).strip().lower()
+            if complexity not in {"low", "normal", "high"}:
+                complexity = "normal"
+            confidence = float(parsed.get("confidence", 0.8))
+            confidence = min(max(confidence, 0.0), 1.0)
+            need_reason = bool(parsed.get("need_reason", False))
         except Exception as e:
             print(f"[intent] LLM call failed: {e}")
             print(traceback.format_exc())
-            intent = "general"
+            return self._deterministic_fallback(query)
 
-        return {"intent": intent}
+        return {
+            "intent": intent,
+            "complexity": complexity,
+            "route_confidence": confidence,
+            "need_reason": need_reason,
+        }
 
 
 class QueryRewrite:
@@ -165,6 +430,13 @@ class QueryRewrite:
         self.llm = llm
 
     def __call__(self, state: AgentState) -> dict:
+        with _node_span(state, "query_rewrite") as span:
+            result = self._run(state)
+            observability = state.get("observability") or get_observability()
+            observability.update(span, rewritten_query=result.get("rewritten_query", "")[:2000])
+            return result
+
+    def _run(self, state: AgentState) -> dict:
         query = state["current_query"]
         messages = state.get("messages", [])
 
@@ -189,7 +461,12 @@ class QueryRewrite:
             return {"rewritten_query": query}
 
         try:
-            response = self.llm.invoke([HumanMessage(content=prompt)])
+            response = self.llm.invoke(
+                [HumanMessage(content=prompt)],
+                prompt_name="query_rewrite",
+                trace=state.get("trace"),
+                task_type="rewrite",
+            )
             rewritten = response.content.strip()
         except Exception as e:
             print(f"[rewrite] LLM call failed: {e}")
@@ -207,6 +484,20 @@ class Retriever:
         self.top_k = top_k
 
     def __call__(self, state: AgentState) -> dict:
+        with _node_span(state, "retrieval") as span:
+            result = self._run(state)
+            observability = state.get("observability") or get_observability()
+            query = state.get("rewritten_query") or state.get("current_query", "")
+            observability.update(
+                span,
+                retrieval_query=query,
+                retrieval_top_k=self.top_k,
+                retrieval_latency_ms=result.get("retrieval_ms", 0.0),
+                **_retrieval_observation(result.get("retrieved_docs", [])),
+            )
+            return result
+
+    def _run(self, state: AgentState) -> dict:
         query = state.get("rewritten_query") or state["current_query"]
         start = perf_counter()
 
@@ -247,13 +538,25 @@ class GraphExpander:
         return {"nodes": [], "edges": []}
 
     def __call__(self, state: AgentState) -> dict:
+        with _node_span(state, "graph_expansion") as span:
+            result = self._run(state)
+            observability = state.get("observability") or get_observability()
+            observability.update(span,
+                                 context_chars=len(result.get("expanded_context", "")),
+                                 context_builder="graph_expansion")
+            return result
+
+    def _run(self, state: AgentState) -> dict:
         docs = state.get("retrieved_docs", [])
+        context_budget = _answer_context_limit()
         expanded_ids = set()
+        retrieved_ids = set()
 
         # 对每个检索到的文档，展开其引用链
         for doc in docs:
             doc_id = doc.get("id") or doc.get("metadata", {}).get("id", "")
             if doc_id:
+                retrieved_ids.add(doc_id)
                 expanded_ids.add(doc_id)
                 # 查找引用此文档的其他文档
                 for edge in self.graph_data.get("edges", []):
@@ -264,21 +567,51 @@ class GraphExpander:
 
         # 构建展开后的上下文
         context_parts = []
+        context_chars = 0
+
+        def append_context(doc_id: str, content: str) -> bool:
+            nonlocal context_chars
+            if not content or len(content) <= 50 or context_chars >= context_budget:
+                return False
+            separator = "\n\n---\n\n" if context_parts else ""
+            heading = f"## {doc_id}\n"
+            remaining = context_budget - context_chars - len(separator) - len(heading)
+            if remaining <= 50:
+                return False
+            section = separator + heading + content[:remaining]
+            context_parts.append(section)
+            context_chars += len(section)
+            return context_chars >= context_budget
+
         for doc in docs:
             doc_id = doc.get("id") or doc.get("metadata", {}).get("id", "")
-            content = doc.get("document", "")
-            if content and len(content) > 50:
-                context_parts.append(f"## {doc_id}\n{content[:2000]}")
+            metadata = doc.get("metadata", {})
+            safe_name = doc_id.replace(".", "_").replace("/", "_")
+            md_file = self.knowledge_dir / f"{safe_name}.md"
+            # Vector chunks are intentionally small. For document/RAG hits, use
+            # the canonical Markdown file so usage rules and examples are not
+            # silently truncated before answer generation.
+            if md_file.exists() and (
+                metadata.get("type") == "document"
+                or str(metadata.get("source", "")).startswith("docs/rag/")
+            ):
+                content = md_file.read_text(encoding="utf-8")
+            else:
+                content = doc.get("document", "")
+            if append_context(doc_id, content[:4000]):
+                break
 
         # 尝试读取完整的知识库文档
         for sym_id in expanded_ids:
+            if context_chars >= context_budget:
+                break
             safe_name = sym_id.replace(".", "_").replace("/", "_")
             md_file = self.knowledge_dir / f"{safe_name}.md"
-            if md_file.exists() and sym_id not in [d.get("id") or d.get("metadata", {}).get("id", "") for d in docs]:
+            if md_file.exists() and sym_id not in retrieved_ids:
                 content = md_file.read_text(encoding="utf-8")
-                context_parts.append(f"## {sym_id}\n{content}")
+                append_context(sym_id, content)
 
-        expanded_context = "\n\n---\n\n".join(context_parts) if context_parts else ""
+        expanded_context = "".join(context_parts)
 
         return {"expanded_context": expanded_context}
 
@@ -286,38 +619,48 @@ class GraphExpander:
 class AnswerGenerator:
     """答案生成节点"""
 
-    def __init__(self, llm):
+    def __init__(self, llm, prompt_registry: PromptRegistry | None = None, prompt_version: str = "v1"):
         self.llm = llm
+        self.prompt_registry = prompt_registry or PromptRegistry()
+        self.prompt_version = prompt_version
         self.system_prompt = self._load_system_prompt()
 
     def _load_system_prompt(self) -> str:
-        path = Path("prompts/system.md")
-        if path.exists():
-            return path.read_text(encoding="utf-8")
-        return ""
+        return self.prompt_registry.get("developer_qa", self.prompt_version, fallback="")
 
     def __call__(self, state: AgentState) -> dict:
+        with _node_span(state, "answer_generation") as span:
+            result = self._run(state)
+            observability = state.get("observability") or get_observability()
+            observability.update(span,
+                                 image_count=len(state.get("images", [])),
+                                 context_chars=len(state.get("expanded_context", "")),
+                                 llm_latency_ms=result.get("llm_ms", 0.0))
+            return result
+
+    def _run(self, state: AgentState) -> dict:
         query = state.get("rewritten_query") or state["current_query"]
         context = state.get("expanded_context", "")
         start = perf_counter()
 
-        if not context:
+        images = state.get("images", [])
+        if not context and not images:
             answer = "抱歉，我在知识库中没有找到相关的信息。请尝试用其他方式描述你的问题，或查阅某设计平台开放平台官方文档。"
-            return {"answer": answer, "llm_ms": (perf_counter() - start) * 1000}
+            return {"answer": answer, "llm_ms": (perf_counter() - start) * 1000,
+                    **self._usage()}
 
         system_content = self.system_prompt or "你是一个严谨的 SDK 问答助手，请根据提供的知识库内容回答问题。"
-        context_text = context[:6000]
+        context_text = context[:_answer_context_limit()] if context else "（本次问题没有检索到知识库内容，请结合图片本身进行分析，并明确区分图片观察与知识库事实。）"
 
         if self.llm is None:
             return {
                 "answer": f"当前未配置模型密钥，以下是知识库中的相关信息：\n\n{context_text[:2000]}",
                 "llm_ms": (perf_counter() - start) * 1000,
+                **self._usage(),
             }
 
         try:
-            response = self.llm.invoke([
-                SystemMessage(content=system_content),
-                HumanMessage(content=f"""请基于以下知识库内容回答问题。
+            prompt = f"""请基于以下知识库内容回答问题。
 
 ## 知识库内容
 {context_text}
@@ -330,15 +673,41 @@ class AnswerGenerator:
 2. 如果涉及函数/API，提供代码示例
 3. 仅基于提供的知识库内容回答，不得虚构来源、版本或行号
 4. 列出参数说明
-5. 如果知识库信息不足，明确说明""")
-            ])
+5. 如果知识库信息不足，明确说明"""
+            if images:
+                content = [{"type": "text", "text": prompt}]
+                content.extend({"type": "image_url", "image_url": {"url": image}} for image in images)
+                human_message = HumanMessage(content=content)
+            else:
+                human_message = HumanMessage(content=prompt)
+            response = self.llm.invoke([
+                SystemMessage(content=system_content),
+                human_message,
+            ], prompt_name="developer_qa", trace=state.get("trace"),
+                # Route from the original user wording; rewritten prompts may
+                # contain generic words such as “代码示例” and distort routing.
+                task_type=infer_task_type(state.get("current_query", query)),
+                has_images=bool(images),
+                complexity=state.get("complexity", "normal"),
+                confidence=state.get("route_confidence", 1.0),
+                need_reason=state.get("need_reason", False))
             answer = response.content
         except Exception as e:
             print(f"[answer] LLM call failed: {e}")
             print(traceback.format_exc())
             answer = f"抱歉，回答生成失败，请稍后重试。以下是我在知识库中找到的相关信息：\n\n{context_text[:2000]}"
 
-        return {"answer": answer, "llm_ms": (perf_counter() - start) * 1000}
+        return {"answer": answer, "llm_ms": (perf_counter() - start) * 1000,
+                **self._usage()}
+
+    def _usage(self) -> dict:
+        stats = getattr(self.llm, "stats", {}) if self.llm else {}
+        return {
+            "input_tokens": stats.get("input_tokens", 0),
+            "output_tokens": stats.get("output_tokens", 0),
+            "total_tokens": stats.get("total_tokens", 0),
+            "estimated_cost": round(stats.get("estimated_cost", 0.0), 8),
+        }
 
 
 # ========== Agent 构建 ==========
@@ -350,17 +719,42 @@ def build_agent(
     chroma_path: str = "data/chroma",
     knowledge_path: str = "data/knowledge",
     graph_path: str = "data/graph/dependency_graph.json",
+    prompt_version: str = "v1",
+    observability: Observability | None = None,
+    trace: object | None = None,
+    deterministic_router: bool = False,
 ):
     """构建 LangGraph Agent"""
-    llm = get_llm(timeout_seconds=timeout_seconds, max_retries=max_retries)
+    prompt_registry = PromptRegistry()
+    model_router = ModelRouter()
+    # Routing is based on the task after intent classification.  The default
+    # route is constructed here; nodes can still classify the request without
+    # an LLM and the configured single-model fallback remains valid.
+    observability = observability or get_observability()
+    clients = {}
+    configured_routes = model_router.role_routes() if model_router.uses_role_config() else model_router.profile_routes()
+    profiles = ("router", "main", "reason", "vision") if model_router.uses_role_config() else ("default", "fast", "strong")
+    for profile in profiles:
+        profile_route = configured_routes[profile]
+        route_timeout, route_retries, route_max_tokens = _llm_runtime_limits(
+            profile_route, timeout_seconds, max_retries
+        )
+        client = get_llm(timeout_seconds=route_timeout, max_retries=route_retries,
+                         max_tokens=route_max_tokens,
+                         route=profile_route, prompt_registry=prompt_registry,
+                         observability=observability, trace=trace,
+                         prompt_version=prompt_version)
+        if client and profile_route.profile not in clients:
+            clients[profile_route.profile] = client
+    llm = RoutedLLM(clients, model_router) if clients else None
     vector_store = VectorStore(persist_dir=chroma_path, knowledge_dir=knowledge_path)
 
     # 创建节点实例
-    intent_router = IntentRouter(llm)
+    intent_router = IntentRouter(None if deterministic_router else llm)
     query_rewrite = QueryRewrite(llm)
     retriever = Retriever(vector_store, top_k=top_k)
     graph_expander = GraphExpander(graph_path=graph_path, knowledge_dir=knowledge_path)
-    answer_generator = AnswerGenerator(llm)
+    answer_generator = AnswerGenerator(llm, prompt_registry, prompt_version)
 
     # 构建图
     workflow = StateGraph(AgentState)
@@ -384,7 +778,32 @@ def build_agent(
 
     # 编译
     agent = workflow.compile()
+    # Expose only non-sensitive runtime metadata for request logging; the
+    # compiled workflow remains the sole execution interface.
+    agent._model_router = model_router
+    agent._llm = llm
+    agent._vector_store = vector_store
     return agent
+
+
+def _llm_runtime_limits(route: ModelRoute, timeout_seconds: float, max_retries: int) -> tuple[float, int, int]:
+    """Apply a bounded runtime budget to the lightweight Router role."""
+    if route.role != "router":
+        return timeout_seconds, max_retries, 4096
+
+    try:
+        router_timeout = float(os.getenv("ROUTER_TIMEOUT_SECONDS", "15"))
+    except ValueError:
+        router_timeout = 15.0
+    try:
+        router_retries = max(0, int(os.getenv("ROUTER_MAX_RETRIES", "0")))
+    except ValueError:
+        router_retries = 0
+    try:
+        router_max_tokens = max(1, int(os.getenv("ROUTER_MAX_TOKENS", "256")))
+    except ValueError:
+        router_max_tokens = 256
+    return router_timeout, router_retries, router_max_tokens
 
 
 # ========== 会话管理 ==========
@@ -506,21 +925,36 @@ class AgentRunner:
     def __init__(self, database_path: Optional[str] = None, top_k: int = 5,
                  timeout_seconds: float = 30.0, max_retries: int = 2,
                  chroma_path: str = "data/chroma", knowledge_path: str = "data/knowledge",
-                 graph_path: str = "data/graph/dependency_graph.json"):
-        self.agent = build_agent(
-            top_k=top_k,
-            timeout_seconds=timeout_seconds,
-            max_retries=max_retries,
-            chroma_path=chroma_path,
-            knowledge_path=knowledge_path,
-            graph_path=graph_path,
-        )
+                 graph_path: str = "data/graph/dependency_graph.json",
+                 prompt_version: str = "v1", deterministic_router: bool = False):
+        self.prompt_version = prompt_version
+        self.prompt_registry = PromptRegistry()
+        self.observability = get_observability()
+        self.model_router = ModelRouter()
+        build_kwargs = {
+            "top_k": top_k, "timeout_seconds": timeout_seconds, "max_retries": max_retries,
+            "chroma_path": chroma_path, "knowledge_path": knowledge_path, "graph_path": graph_path,
+        }
+        if prompt_version != "v1":
+            build_kwargs["prompt_version"] = prompt_version
+        if deterministic_router:
+            build_kwargs["deterministic_router"] = True
+        self.agent = build_agent(**build_kwargs)
         self.session_manager = SessionManager(database_path)
         self.knowledge_index_path = Path(knowledge_path) / "_index.json"
 
+    def warmup(self) -> dict[str, float | bool]:
+        """Warm the vector encoder before accepting the first user request."""
+        vector_store = getattr(self.agent, "_vector_store", None)
+        if vector_store is None:
+            return {"ready": False, "warmup_ms": 0.0}
+        return vector_store.warmup()
+
     def chat(self, query: str, session_id: Optional[str] = None,
-             request_id: Optional[str] = None) -> dict:
+             request_id: Optional[str] = None, images: Optional[list[str]] = None) -> dict:
         """处理用户消息"""
+        images = images or []
+        request_id = request_id or __import__("uuid").uuid4().hex
         # 创建或获取会话
         if not session_id or (not self.session_manager.database_path and session_id not in self.session_manager.sessions):
             session_id = self.session_manager.create_session()
@@ -546,13 +980,33 @@ class AgentRunner:
             "llm_ms": 0.0,
         }
 
-        # 运行 Agent
-        try:
-            result = self.agent.invoke({
+        # 运行 Agent；request_id 同时作为可关联的 trace_id，不把远程
+        # observability 作为业务依赖。
+        started_at = perf_counter()
+        task_type = infer_task_type(query)
+        route = self.model_router.route(task_type, context_length=len(query), has_image=bool(images))
+        prompt_metadata = self.prompt_registry.metadata("developer_qa", self.prompt_version)
+        usage_token = start_request_usage()
+        with self.observability.trace(request_id, {
+            "session_id": session_id, "user_query": query,
+            "trace_id": request_id, "timestamp": datetime.now(timezone.utc).isoformat(),
+            "prompt_name": "developer_qa", "prompt_version": self.prompt_version,
+            "prompt_status": prompt_metadata.get("status", ""),
+            "task_type": route.profile,
+            "model_role": route.role, "image_count": len(images),
+            "provider": route.provider, "model": route.model,
+            "route_reason": route.reason,
+        }) as trace:
+            try:
+                result = self.agent.invoke({
                 "messages": messages,
                 "current_query": query,
                 "rewritten_query": "",
                 "intent": "",
+                "complexity": "normal",
+                "route_confidence": 1.0,
+                "need_reason": False,
+                "images": images,
                 "retrieved_docs": [],
                 "expanded_context": "",
                 "answer": "",
@@ -560,14 +1014,49 @@ class AgentRunner:
                 "retrieval_ms": 0.0,
                 "llm_ms": 0.0,
                 "session_id": session_id,
-            })
-            answer = result.get("answer", "")
-        except Exception as e:
-            print(f"[agent] Error: {e}")
-            print(traceback.format_exc())
-            answer = f"抱歉，处理您的问题时出现错误，请稍后重试。错误信息: {str(e)}"
+                "trace_id": request_id,
+                "trace": trace,
+                "observability": self.observability,
+                })
+                answer = result.get("answer", "")
+            except Exception as e:
+                print(f"[agent] Error: {e}")
+                print(traceback.format_exc())
+                answer = f"抱歉，处理您的问题时出现错误，请稍后重试。错误信息: {str(e)}"
+                result["error_type"] = type(e).__name__
+            request_usage = current_request_usage() or {
+                "input_tokens": 0, "output_tokens": 0,
+                "total_tokens": 0, "estimated_cost": 0.0,
+            }
+            result.update(request_usage)
+            citations = build_citations(result.get("retrieved_docs", []), self.knowledge_index_path)
+            retrieved_docs = result.get("retrieved_docs", [])
+            retrieval_observation = _retrieval_observation(retrieved_docs)
+            self.observability.update(trace,
+                trace_id=request_id, timestamp=datetime.now(timezone.utc).isoformat(),
+                rewritten_query=result.get("rewritten_query", query), intent=result.get("intent", ""),
+                retrieval_query=result.get("rewritten_query", query),
+                retrieval_top_k=len(retrieved_docs),
+                **retrieval_observation,
+                retrieval_latency_ms=result.get("retrieval_ms", 0.0), llm_latency_ms=result.get("llm_ms", 0.0),
+                total_latency_ms=(perf_counter() - started_at) * 1000,
+                citation_count=len(citations),
+                citation_validity=_citation_validity(citations, retrieved_docs),
+                input_tokens=result.get("input_tokens", 0),
+                output_tokens=result.get("output_tokens", 0),
+                total_tokens=result.get("total_tokens", 0),
+                estimated_cost=result.get("estimated_cost", 0.0),
+                success="error_type" not in result,
+                error_type=result.get("error_type", ""),
+                answer=result.get("answer", answer)[:4000] if result.get("answer", answer) else "")
 
-        citations = build_citations(result.get("retrieved_docs", []), self.knowledge_index_path)
+        reset_request_usage(usage_token)
+        active_route = getattr(getattr(self.agent, "_llm", None), "last_route", None) or route
+        self.observability.update(trace if "trace" in locals() else object(),
+                                  provider=active_route.provider, model=active_route.model,
+                                  route_reason=active_route.reason, model_role=active_route.role,
+                                  prompt_name="developer_qa", prompt_version=self.prompt_version,
+                                  image_count=len(images))
         self.session_manager.add_message(
             session_id, "assistant", answer, citations=citations, request_id=request_id
         )
@@ -580,4 +1069,21 @@ class AgentRunner:
             "citations": citations,
             "retrieval_ms": result.get("retrieval_ms", 0.0),
             "llm_ms": result.get("llm_ms", 0.0),
+            "trace_id": request_id,
+            "rewritten_query": result.get("rewritten_query", query),
+            "prompt_name": "developer_qa",
+            "prompt_version": self.prompt_version,
+            "provider": active_route.provider,
+            "model": active_route.model,
+            "model_role": active_route.role,
+            "route_reason": active_route.reason,
+            "image_count": len(images),
+            "input_tokens": result.get("input_tokens", 0),
+            "output_tokens": result.get("output_tokens", 0),
+            "total_tokens": result.get("total_tokens", 0),
+            "estimated_cost": result.get("estimated_cost", 0.0),
+            "retrieved_documents": [
+                doc.get("id") or doc.get("metadata", {}).get("id", "")
+                for doc in result.get("retrieved_docs", [])
+            ],
         }

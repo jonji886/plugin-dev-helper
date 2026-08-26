@@ -7,6 +7,17 @@
 ## [Unreleased]
 
 ### Added
+- 更新 SiliconFlow 四角色价格配置：Router/Main/Reason/Vision 采用官方价格中心数据，GLM-5.1 Pro 支持 32K 输入分档，并记录价格来源与抓取日期
+- 新增 `prompts/manifest.json`，为每个 Prompt 版本维护 status、created_at 和 description；Trace 同步记录 Prompt 元数据
+- 完善 Langfuse Trace 的检索 scores/top-k/source/knowledge version、Citation validity、错误类型、温度和总耗时字段
+- Evaluation 页面展示 Badcase 创建时间；专项测试覆盖 Prompt Registry、成本分档、Feedback 异常和 Langfuse Fail Open
+- Prompt A/B 报告增加数据集哈希、当前模型路由、价格配置、执行时间、硬超时和失败样本信息；完成当前四角色配置下 24 条 Golden Dataset 的真实 v1/v2 评测
+- 正式落地 `ROUTER/MAIN/REASON/VISION` 四角色模型路由：意图分类、常规问答、复杂推理和图片理解分别使用独立模型；新增 `/api/chat` 图片输入、角色状态和路由指标
+- 前端增加图片选择、预览和移除能力；后端限制单次最多 3 张图片，并限制为 HTTPS 或 `data:image` 输入，图片不写入会话历史
+- 按硅基流动实际模型目录校正 Router 为 `Qwen/Qwen3-8B`，并将中转冷启动超时调整为 60 秒；四角色均完成真实请求冒烟验证
+- 新增四类模型路由验收集与 `scripts/check_model_routing.py`，支持校验角色命中率、批次失败率及 `/api/metrics` 的分角色延迟/token/成本统计
+- 服务启动阶段预热 embedding；Router 增加 15 秒、0 重试、256 token 的独立预算，远程分类失败时回退到确定性 `infer_task_type()`
+- 复杂推理回退规则覆盖“分析/排查/分步骤/可能原因”等表达，`/api/chat` 返回 provider 与 route reason，便于路由验收和运行归因
 - 增加可解释答案评分、人工确认回归集加载、失败请求查询接口和 SQLite 反馈候选 JSONL 导出脚本，形成“反馈 → 归因 → 回归”的评测闭环
 - 统一知识构建流水线：SDK 与 `docs/rag/` 文档合并为同一索引后统一构建 Chroma 向量库
 - 聊天接口增加结构化 `citations` 字段，包含知识单元 ID、来源、SDK 版本和源行号；前端新增来源展示与复制
@@ -17,8 +28,17 @@
 - SQLite 持久化会话、请求指标与用户反馈闭环；新增 `/api/ready`、`/api/metrics` 和反馈接口
 - GitHub Actions CI：后端单元测试、前端 lint 与生产构建
 - 独立检索质量门禁脚本，CI 重建索引后校验 Recall@5 ≥ 85%
+- Golden Dataset 按当前 `index.d.ts v1.83.0` 与 RAG 文档重新校准，增加显式关键词和知识不足时的拒答样例
+- 增加可选 Langfuse Observability、Prompt 版本目录、应用层模型路由和 token/cost 追踪
+- 扩展 SQLite 反馈模型，支持负反馈自动生成 badcase、人工状态管理和晋升回归评测集
+- 增加离线 Prompt A/B 评测与 Regression Gate，以及 `/evaluation` 管理页面
+- 约束 NumPy / PyTorch / Transformers / Sentence Transformers 兼容版本，修复干净环境无法构建 embedding 的问题
+- 评测入口自动加载 `.env`；答案评分增加 Markdown、API 标识和自然语言变体归一化
+- 正式接入 SiliconFlow OpenAI-compatible API，支持 DeepSeek、千问、GLM 三模型按任务路由并保留显式 profile 覆盖
+- 路由任务类型改由原始用户问题确定，避免 LLM 重写内容或固定提示词导致模型 profile 漂移
 
 ### Fixed
+- 修复共享 LLM 客户端累计 token/成本被重复写入单请求指标的问题；增加请求级上下文隔离，并限制 RAG 证据上下文预算，降低长文档请求的延迟与成本放大
 - 修复宽窗口下前端根节点按内容收缩导致主聊天区域只占左侧、右侧出现空白的问题，并完善侧栏和输入区的响应式宽度
 - 移除未使用且已从新版 LangChain 删除的 `langchain.callbacks.base` 导入及冗余的 `langchain`、`langchain-community` 依赖，修复 Python 3.11 CI 单测失败
 - 修复前端将反馈接口的 `204 No Content` 当作 JSON 解析，点击“有帮助 / 无帮助”时报错的问题
@@ -31,14 +51,19 @@
 - 修复 `DELETE /api/chat/history` 未传会话 ID 时未实际清除全部会话的问题
 - 将 CORS 从任意来源收紧为通过 `FRONTEND_ORIGINS` 显式配置
 - 修复 `export function` 包装下 JSDoc 丢失，导致中文 API 描述无法进入知识库的问题
+- 修复 RAG 文档命中时只使用向量 chunk，导致使用规范、代码示例和并发限制被截断的问题
+- 修复拒答样例携带合法证据引用时被误判为 Citation Invalid 的评测逻辑
+- `/api/ready` 改为检查实际生效 provider，并返回脱敏后的模型路由摘要
 
 ### Changed
+- `.env.example`、README 和运行时说明从三模型 profile 更新为四角色配置，并保留旧 `MODEL_*` 与 `DEFAULT/FAST/STRONG_LLM_*` 兼容路径
 - 重构 README 的新人阅读路径：将完整首次运行指南前置，新增首次运行与项目阅读图示、需求价值与量化衡量方式，明确 RAG 同步和完整重建的适用场景，并统一 `.env` 格式说明
 - 聊天请求在线程中执行，避免 embedding 与同步 LLM 调用阻塞 FastAPI 事件循环
 - README 新增 Docker 部署章节：双容器架构、部署步骤、环境变量与踩坑记录；项目结构补充 `deploy/` 目录说明
 - `deploy/docker-compose.yml` 前端构建显式指定 `dockerfile: ../deploy/frontend/Dockerfile`（context 指向项目根 `frontend/` 源码），前端 Dockerfile 独立于源码目录维护，避免同步源码时误删；服务器部署目录同步重组为 `deploy/` 布局
 - 系统提示词改为禁止模型自行虚构来源，来源由后端基于检索结果附加
 - 移除未在当前评测脚本中使用的 RAGAS 与 datasets 运行时依赖
+- 重构 README，补充 Enterprise Developer Copilot 定位、架构、质量闭环和工程取舍
 
 ## [0.1.0] - 2026-06-09
 

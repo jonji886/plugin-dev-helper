@@ -6,10 +6,43 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from agent.assistant import AgentRunner
+from agent.assistant import GraphExpander
 from app.config import get_settings
 
 
 class RuntimeConfigurationTests(unittest.TestCase):
+    def test_graph_expander_reads_full_rag_document_instead_of_vector_chunk(self):
+        with tempfile.TemporaryDirectory() as directory:
+            knowledge_dir = Path(directory)
+            (knowledge_dir / "rag_JSON.md").write_text(
+                "# 方案导出JSON\n返回文件 URL，UI 层使用 fetch 读取内容；不建议高并发调用，必要时应异步处理。",
+                encoding="utf-8",
+            )
+            context = GraphExpander(knowledge_dir=str(knowledge_dir))._run({
+                "retrieved_docs": [{
+                    "id": "rag.JSON",
+                    "document": "# 方案导出JSON\n返回 URL。",
+                    "metadata": {"type": "document", "source": "docs/rag/方案导出JSON.md"},
+                }],
+            })["expanded_context"]
+
+        self.assertIn("fetch", context)
+        self.assertIn("高并发", context)
+
+    def test_graph_expander_respects_answer_context_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            knowledge_dir = Path(directory)
+            (knowledge_dir / "rag_demo.md").write_text("# Demo\n" + "证据内容。" * 2000, encoding="utf-8")
+            with patch.dict(os.environ, {"ANSWER_CONTEXT_MAX_CHARS": "2000"}, clear=False):
+                context = GraphExpander(knowledge_dir=str(knowledge_dir))._run({
+                    "retrieved_docs": [{
+                        "id": "rag.demo",
+                        "metadata": {"type": "document", "source": "docs/rag/demo.md"},
+                    }],
+                })["expanded_context"]
+
+        self.assertLessEqual(len(context), 2000)
+
     def test_settings_exposes_all_runtime_data_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             data_dir = Path(directory) / "data"

@@ -57,7 +57,8 @@
     "id": "q007",
     "category": "code_example",
     "question": "如何用 TypeScript 调用 IDP.Miniapp.exit？",
-    "expected_answer": "直接调用 IDP.Miniapp.exit() 或使用别名 IDP.exit()",
+    "expected_answer": "直接调用 IDP.Miniapp.exit() 退出小程序",
+    "expected_keywords": ["IDP.Miniapp.exit", "退出小程序"],
     "reference_docs": [
       "IDP.Miniapp.exit"
     ]
@@ -85,7 +86,8 @@
     "id": "q010",
     "category": "sdk_feature",
     "question": "BomDetectionType 枚举有哪些值？",
-    "expected_answer": "包含墙面检测、门窗检测等类型值",
+    "expected_answer": "包含 MATERIAL、PRODUCT、ORDER 三个枚举值，分别表示物料、产品和订单",
+    "expected_keywords": ["MATERIAL", "PRODUCT", "ORDER"],
     "reference_docs": [
       "BomDetectionType"
     ]
@@ -94,7 +96,8 @@
     "id": "q011",
     "category": "api_usage",
     "question": "BomMaterialBase 接口有哪些属性？",
-    "expected_answer": "包含材质的编号、名称、品牌、规格等属性",
+    "expected_answer": "包含 id、type、name、productId、productName 属性",
+    "expected_keywords": ["id", "type", "name", "productId", "productName"],
     "reference_docs": [
       "BomMaterialBase"
     ]
@@ -103,7 +106,8 @@
     "id": "q012",
     "category": "sdk_feature",
     "question": "AugmentedRequired 和 AugmentedOptional 有什么区别？",
-    "expected_answer": "一个是必填增强类型，一个是可选增强类型",
+    "expected_behavior": "abstain",
+    "expected_answer": "当前知识库只记录了两个类型别名的泛型参数 T 和 K，无法确认它们的具体实现区别",
     "reference_docs": [
       "AugmentedRequired",
       "AugmentedOptional"
@@ -113,7 +117,8 @@
     "id": "q013",
     "category": "api_usage",
     "question": "BomDetectionRule 接口是做什么的？",
-    "expected_answer": "定义检测规则的接口，包含检测类型、规则级别等",
+    "expected_answer": "定义 BOM 检测规则，包含 ruleId、ruleName、alertLevel 字段",
+    "expected_keywords": ["ruleId", "ruleName", "alertLevel"],
     "reference_docs": [
       "BomDetectionRule"
     ]
@@ -122,7 +127,8 @@
     "id": "q014",
     "category": "code_example",
     "question": "如何判断 BomDetectionRuleAlertLevel 的值？",
-    "expected_answer": "通过枚举值比较，如 info、warning、error 等级别",
+    "expected_answer": "通过比较 BomDetectionRuleAlertLevel.ERR 和 BomDetectionRuleAlertLevel.WARN 判断错误或告警级别",
+    "expected_keywords": ["BomDetectionRuleAlertLevel.ERR", "BomDetectionRuleAlertLevel.WARN"],
     "reference_docs": [
       "BomDetectionRuleAlertLevel"
     ]
@@ -131,7 +137,8 @@
     "id": "q015",
     "category": "param_description",
     "question": "BomProductBase 接口的必填字段有哪些？",
-    "expected_answer": "包含产品编号、产品名称等必填字段",
+    "expected_answer": "必填字段为 productId 和 productName",
+    "expected_keywords": ["productId", "productName"],
     "reference_docs": [
       "BomProductBase"
     ]
@@ -140,7 +147,8 @@
     "id": "q016",
     "category": "api_usage",
     "question": "IDP 平台上如何查看 View 的挂载点？",
-    "expected_answer": "通过 View_2 接口的 mountPoints 属性获取挂载点信息",
+    "expected_answer": "访问 IDP.Miniapp.view.mountPoints 获取 View 的挂载点信息",
+    "expected_keywords": ["IDP.Miniapp.view", "mountPoints"],
     "reference_docs": [
       "View_2"
     ]
@@ -149,7 +157,8 @@
     "id": "q017",
     "category": "sdk_feature",
     "question": "SDK 中 BomMaterialType 枚举包含哪些材质类型？",
-    "expected_answer": "包含多种装修建材类型枚举",
+    "expected_answer": "包含 PLANK、MOLDING、FINISHED_PRODUCT 三个材质类型",
+    "expected_keywords": ["PLANK", "MOLDING", "FINISHED_PRODUCT"],
     "reference_docs": [
       "BomMaterialType"
     ]
@@ -158,7 +167,8 @@
     "id": "q018",
     "category": "param_description",
     "question": "BomDetectionProblem 接口包含哪些字段？",
-    "expected_answer": "包含检测问题描述、位置、级别等字段",
+    "expected_answer": "包含 ruleId、type、material、product、message 字段，其中 ruleId 和 type 必填",
+    "expected_keywords": ["ruleId", "type", "material", "product", "message"],
     "reference_docs": [
       "BomDetectionProblem"
     ]
@@ -167,7 +177,8 @@
     "id": "q019",
     "category": "code_example",
     "question": "如何使用 BomDetectionOption 配置检测？",
-    "expected_answer": "通过 BomDetectionOption 接口配置检测参数，包括检测范围和规则",
+    "expected_answer": "将 orderId 和可选的 productIds 放入 BomDetectionOption，再传给 IDP.Integration.Bom.Detection.detectAsync",
+    "expected_keywords": ["orderId", "productIds", "detectAsync"],
     "reference_docs": [
       "BomDetectionOption"
     ]
@@ -185,7 +196,8 @@
     "id": "q021",
     "category": "api_usage",
     "question": "保存设计方案接口是哪个？",
-    "expected_answer": "调用 IDP.Design.save() 保存方案，返回 Promise<void>",
+    "expected_answer": "调用 IDP.Design.save() 保存方案",
+    "expected_keywords": ["IDP.Design.save", "保存方案"],
     "reference_docs": [
       "IDP.Design.save"
     ]
@@ -195,6 +207,8 @@
     "category": "rag_doc",
     "question": "工具插件说明主要介绍了什么？",
     "expected_answer": "工具插件整体方案，UI 与 VM 分工，开放能力和生命周期",
+    "expected_keywords": ["工具插件", "UI", "VM", "开放能力", "生命周期"],
+    "min_keyword_ratio": 0.6,
     "reference_docs": [
       "rag.工具插件说明"
     ]
@@ -213,6 +227,8 @@
     "category": "rag_doc",
     "question": "方案导出JSON里 getDesignFullJsonUrlAsync 的返回值和使用规范是什么？",
     "expected_answer": "返回文件 URL，需要在 UI 层用 fetch 读取，不建议高并发调用",
+    "expected_keywords": ["URL", "UI", "fetch", "高并发", "不超过 3", "异步"],
+    "min_keyword_ratio": 0.6,
     "reference_docs": [
       "rag.方案导出JSON"
     ]

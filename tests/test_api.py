@@ -31,12 +31,14 @@ class FakeAgentRunner:
     def __init__(self):
         self.session_manager = FakeSessionManager()
 
-    def chat(self, query, session_id=None, request_id=None):
+    def chat(self, query, session_id=None, request_id=None, images=None):
         return {
             "answer": query,
             "session_id": session_id or "a1b2c3d4",
             "intent": "general",
             "retrieved_count": 1,
+            "model_role": "main",
+            "image_count": len(images or []),
             "citations": [{
                 "id": "IDP.Miniapp.exit",
                 "source": "index.d.ts",
@@ -71,19 +73,37 @@ class ApiTests(unittest.TestCase):
                         "helpful": False,
                         "comment": "需要补充示例",
                     })
+                    duplicate_feedback_response = await client.post("/api/chat/feedback", json={
+                        "request_id": chat_response.json()["request_id"],
+                        "helpful": False,
+                        "reason": "incomplete",
+                        "comment": "重复提交",
+                    })
+                    missing_feedback_response = await client.post("/api/chat/feedback", json={
+                        "request_id": "missing-trace", "helpful": False,
+                    })
+                    invalid_reason_response = await client.post("/api/chat/feedback", json={
+                        "request_id": chat_response.json()["request_id"],
+                        "helpful": False, "reason": "not-a-reason",
+                    })
+                    badcases_response = await client.get("/api/badcases")
                     failures_response = await client.get("/api/metrics/failures?limit=10")
                     clear_response = await client.delete("/api/chat/history")
                     invalid_response = await client.get("/api/chat/history?session_id=invalid")
                     return (
                         chat_response, feedback_response, metrics_response,
-                        negative_feedback_response, failures_response,
+                        negative_feedback_response, duplicate_feedback_response,
+                        missing_feedback_response, invalid_reason_response,
+                        badcases_response, failures_response,
                         clear_response, invalid_response,
                     )
 
             try:
                 (
                     chat_response, feedback_response, metrics_response,
-                    negative_feedback_response, failures_response,
+                    negative_feedback_response, duplicate_feedback_response,
+                    missing_feedback_response, invalid_reason_response,
+                    badcases_response, failures_response,
                     clear_response, invalid_response,
                 ) = asyncio.run(request())
                 self.assertEqual(chat_response.status_code, 200)
@@ -92,15 +112,58 @@ class ApiTests(unittest.TestCase):
                 self.assertEqual(feedback_response.content, b"")
                 self.assertEqual(metrics_response.json()["helpful_rate"], 1.0)
                 self.assertEqual(negative_feedback_response.status_code, 204)
+                self.assertEqual(duplicate_feedback_response.status_code, 204)
+                self.assertEqual(missing_feedback_response.status_code, 404)
+                self.assertEqual(invalid_reason_response.status_code, 422)
+                self.assertEqual(len(badcases_response.json()), 1)
+                self.assertEqual(badcases_response.json()[0]["created_at"] != "", True)
                 self.assertEqual(failures_response.status_code, 200)
                 self.assertEqual(failures_response.json()[0]["failure_reasons"], ["negative_feedback"])
-                self.assertEqual(failures_response.json()[0]["feedback_comment"], "需要补充示例")
+                self.assertEqual(failures_response.json()[0]["feedback_comment"], "重复提交")
                 self.assertEqual(clear_response.status_code, 200)
                 self.assertEqual(main.agent_runner.session_manager.sessions, {})
                 self.assertEqual(invalid_response.status_code, 400)
             finally:
                 main.agent_runner = previous_runner
                 main.metrics_store = previous_metrics_store
+
+    def test_chat_accepts_bounded_image_data_url(self):
+        previous_runner = main.agent_runner
+        previous_metrics_store = main.metrics_store
+        main.agent_runner = FakeAgentRunner()
+        with tempfile.TemporaryDirectory() as directory:
+            main.metrics_store = MetricsStore(Path(directory) / "app.sqlite3")
+
+            async def request():
+                transport = httpx.ASGITransport(app=main.app)
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.post("/api/chat", json={
+                        "query": "分析这张图", "images": ["data:image/png;base64,AAAA"]
+                    })
+
+            try:
+                response = asyncio.run(request())
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()["image_count"], 1)
+            finally:
+                main.agent_runner = previous_runner
+                main.metrics_store = previous_metrics_store
+
+    def test_chat_rejects_invalid_image_url(self):
+        previous_runner = main.agent_runner
+        main.agent_runner = FakeAgentRunner()
+        try:
+            async def request():
+                transport = httpx.ASGITransport(app=main.app)
+                async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                    return await client.post("/api/chat", json={
+                        "query": "分析", "images": ["http://example.com/a.png"]
+                    })
+
+            response = asyncio.run(request())
+            self.assertEqual(response.status_code, 400)
+        finally:
+            main.agent_runner = previous_runner
 
 
 if __name__ == "__main__":
