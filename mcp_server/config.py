@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -66,6 +66,10 @@ class MCPSettings:
     default_sdk_version: str
     allowed_hosts: tuple[str, ...]
     allowed_origins: tuple[str, ...]
+    # 放在新增字段尾部并提供默认值，兼容旧的直接构造调用方。
+    rules_path: Path = field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent / "rules" / "kujiale"
+    )
 
 
 def get_mcp_settings() -> MCPSettings:
@@ -93,6 +97,7 @@ def get_mcp_settings() -> MCPSettings:
         max_example_chars=_positive_int("MCP_MAX_EXAMPLE_CHARS", 4000),
         max_code_chars=_positive_int("MCP_MAX_CODE_CHARS", 20000),
         max_candidates=_positive_int("MCP_MAX_CANDIDATES", 5),
+        rules_path=Path(os.getenv("MCP_RULES_PATH", str(project_root / "rules" / "kujiale"))),
         telemetry_enabled=_env_flag("MCP_TELEMETRY_ENABLED", True),
         tool_timeout_seconds=_positive_float("MCP_TOOL_TIMEOUT_SECONDS", 30.0),
         default_sdk_version=os.getenv("MCP_DEFAULT_SDK_VERSION", ""),

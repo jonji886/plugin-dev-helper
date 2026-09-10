@@ -362,6 +362,31 @@ MCP 客户端配置示例：
 | `get_related_symbols` | 查符号的依赖/被引关系，构造参数前展开相关类型 |
 | `get_examples` | 从 docs/rag 与知识库返回官方代码示例（只返回真实片段，不临时生成冒充官方） |
 | `validate_api_usage` | 静态校验代码里的 API 用法（不存在 API、错误 namespace/参数名、缺必填、SDK 版本不一致） |
+| `get_plugin_constraints` | 按平台组件和任务返回酷家乐工具插件的结构化约束，Critical/High 优先 |
+| `get_plugin_scaffold` | 返回最小 `manifest.json`、`ui.html`、`vm.js` 骨架和 UI/VM 职责边界 |
+| `validate_plugin_project` | 扫描插件 Manifest、UI、VM 和消息 action，返回评分与可定位 Finding |
+
+### Kujiale Plugin Guardrails
+
+酷家乐工具插件不是普通 Web 项目：UI 运行在 iframe 中，负责 DOM、用户交互和网络请求；VM 负责调用 `IDP` 插件 API，但不能依赖 DOM、浏览器网络请求或定时器。UI 与 VM 之间应通过 `window.parent.postMessage` 和 `defaultFrame.postMessage` 通信。
+
+这些强约束维护在 [`rules/kujiale/`](rules/kujiale) 的结构化 Rule Layer 中。Knowledge 继续负责 API 文档、参数、示例和教程；Rule Layer 负责“必须 / 禁止 / 只能”等可验证约束。`AGENTS.md` 只规定调用时机，不复制平台规则。
+
+推荐的 Coding Agent 链路是：
+
+```text
+用户需求
+  → get_plugin_constraints
+  → get_plugin_scaffold（需要时）
+  → 查询 API / 文档并生成代码
+  → validate_plugin_project
+  → 修复 Critical / High Finding
+  → 再次 validate_plugin_project
+```
+
+`validate_plugin_project` 当前只扫描酷家乐工具插件的 `manifest.json`、HTML UI 和 JavaScript VM。返回结果包含 `score`、按严重级别汇总，以及 `rule_id`、文件、行号、风险、修改建议和 `confidence`。`Critical` Finding 会使结果不能通过；启发式检查会降低 confidence，避免把不确定的语义问题伪装成确定错误。
+
+可直接扫描故意包含违规的 [`demos/buggy_kujiale_plugin/`](demos/buggy_kujiale_plugin)。规则来自当前项目维护的插件开发知识和约束；本项目属于个人技术 POC，不代表酷家乐官方规范的完整或永久版本。
 
 远程部署复用 [`deploy/docker-compose.yml`](deploy/docker-compose.yml) 的 `mcp` 服务（镜像 [`deploy/Dockerfile.mcp`](deploy/Dockerfile.mcp)），用 `MCP_HOST_PORT` 指定宿主机端口。
 
@@ -403,7 +428,8 @@ knowledge_builder/   知识单元构建
 sdk_parser/          TypeScript AST 解析
 prompts/             Git-based Prompt 版本
 eval/                Golden Dataset、评分、A/B 报告与 Regression Gate
-mcp_server/          MCP Server（工具、服务、配置、遥测，只读查询）
+mcp_server/          MCP Server（工具、服务、Rule、配置、遥测，只读查询）
+rules/               酷家乐结构化 Guardrail 规则（唯一平台约束事实源）
 benchmark/           MCP 效果评测任务集与验收脚本
 scripts/             知识构建、失败案例导出、评测入口
 frontend/            Next.js Chat UI 与 Feedback UI

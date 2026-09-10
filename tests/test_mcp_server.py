@@ -18,6 +18,9 @@ EXPECTED_TOOLS = {
     "get_related_symbols",
     "get_examples",
     "validate_api_usage",
+    "get_plugin_constraints",
+    "validate_plugin_project",
+    "get_plugin_scaffold",
 }
 
 
@@ -67,7 +70,7 @@ class McpServerTests(unittest.TestCase):
         self.assertEqual(payload["service"], "plugin-developer-mcp")
         self.assertEqual(payload["transport"], "streamable-http")
         self.assertTrue(payload["knowledge_available"])
-        self.assertGreaterEqual(payload["tool_count"], 6)
+        self.assertGreaterEqual(payload["tool_count"], 9)
 
     def test_mcp_endpoint_mounted(self):
         paths = {getattr(route, "path", "") for route in self.app.routes}

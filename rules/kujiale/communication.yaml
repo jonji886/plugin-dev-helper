@@ -1,0 +1,49 @@
+rules:
+  - id: KJL-COMM-001
+    platform: kujiale
+    category: communication
+    scope: communication
+    severity: high
+    title: UI → VM 必须使用合法消息通信方式
+    description: UI 请求 VM 应使用 window.parent.postMessage 发送消息。
+    detection:
+      type: static_pattern
+      pattern: window.parent.postMessage
+    confidence: high
+    suggestion: '使用 window.parent.postMessage({ action: "..." }, "*") 将请求发送给 VM。'
+    references: [kujiale_plugin_runtime]
+    keywords: [UI, VM, postMessage, action, 通信]
+    required_patterns: [UI 使用 window.parent.postMessage 发送请求]
+    score_category: communication
+
+  - id: KJL-COMM-002
+    platform: kujiale
+    category: communication
+    scope: communication
+    severity: high
+    title: VM → UI 必须使用合法通信方式
+    description: VM 返回 UI 应使用 IDP 插件 API 的 defaultFrame.postMessage。
+    detection:
+      type: static_pattern
+      pattern: defaultFrame.postMessage
+    confidence: high
+    suggestion: '使用 IDP.Miniapp.view.defaultFrame.postMessage 将结果返回 UI。'
+    references: [kujiale_plugin_runtime]
+    keywords: [VM, UI, defaultFrame, postMessage, 返回]
+    required_patterns: [VM 使用 defaultFrame.postMessage 返回结果]
+    score_category: communication
+
+  - id: KJL-COMM-003
+    platform: kujiale
+    category: communication
+    scope: communication
+    severity: medium
+    title: 消息 action 应在两端匹配
+    description: UI/VM 发送的 action 应存在对应接收处理，避免消息无人处理或结果无人监听。
+    detection:
+      type: heuristic_action_matching
+    confidence: medium
+    suggestion: 检查发送端和接收端的 data.action 字符串是否一致，并补齐缺失处理。
+    references: [kujiale_plugin_runtime]
+    keywords: [action, 通信, postMessage, 消息, UI, VM]
+    score_category: communication

@@ -8,8 +8,11 @@ from mcp_server.config import MCPSettings, get_mcp_settings
 from mcp_server.services.examples import ExampleService
 from mcp_server.services.graph import GraphService
 from mcp_server.services.knowledge import KnowledgeService
+from mcp_server.services.kujiale import PluginProjectValidator
 from mcp_server.services.retrieval import RetrievalService
+from mcp_server.services.scaffold import KujialeScaffoldService
 from mcp_server.services.validator import UsageValidator
+from mcp_server.rules import KujialeRuleEngine
 from mcp_server.telemetry import McpTelemetry
 
 
@@ -21,6 +24,9 @@ class Container:
     graph: GraphService
     examples: ExampleService
     validator: UsageValidator
+    kujiale_rules: KujialeRuleEngine
+    plugin_validator: PluginProjectValidator
+    scaffold: KujialeScaffoldService
     telemetry: McpTelemetry
 
     def readiness(self) -> dict:
@@ -29,6 +35,8 @@ class Container:
             "knowledge_available": self.knowledge.is_available(),
             "vector_available": self.retrieval.is_available(),
             "graph_available": self.graph.is_available(),
+            "kujiale_rules_available": bool(self.kujiale_rules.rules()),
+            "kujiale_rule_count": len(self.kujiale_rules.rules()),
             "sdk_versions": self.knowledge.sdk_versions(),
             "graph": self.graph.stats(),
         }
@@ -37,6 +45,8 @@ class Container:
 def build_container(settings: MCPSettings | None = None) -> Container:
     settings = settings or get_mcp_settings()
     knowledge = KnowledgeService(settings.knowledge_path)
+    validator = UsageValidator(knowledge)
+    kujiale_rules = KujialeRuleEngine(settings.rules_path)
     return Container(
         settings=settings,
         knowledge=knowledge,
@@ -52,6 +62,9 @@ def build_container(settings: MCPSettings | None = None) -> Container:
             max_examples=settings.max_examples,
             max_example_chars=settings.max_example_chars,
         ),
-        validator=UsageValidator(knowledge),
+        validator=validator,
+        kujiale_rules=kujiale_rules,
+        plugin_validator=PluginProjectValidator(kujiale_rules, validator),
+        scaffold=KujialeScaffoldService(kujiale_rules),
         telemetry=McpTelemetry(settings.database_path, enabled=settings.telemetry_enabled),
     )

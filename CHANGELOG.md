@@ -7,6 +7,7 @@
 ## [Unreleased]
 
 ### Added
+- 新增酷家乐工具插件 Guardrail Rule Layer、`get_plugin_constraints`、`get_plugin_scaffold` 和 `validate_plugin_project`，覆盖 Manifest、UI/VM 运行时、API 使用、Promise 异常与消息 action 匹配，并增加合法/违规 Fixture 与 Buggy Demo
 - 新增 `LLMAdapter`、`OpenAICompatibleAdapter`、`InstrumentedAdapter` 和 `FailoverAdapter`，将 SiliconFlow 与官方 DeepSeek 的客户端、计费、可观测性和瞬时错误故障转移从角色路由中解耦
 - 新增请求级故障转移验收测试，覆盖超时切换、响应路由元数据、token/cost 指标隔离和认证错误失败率；修复 Agent 异常被错误记为成功的问题
 - 增加官方 DeepSeek `deepseek-v4-flash` 兜底映射、超时/重试配置和价格记录；Vision 默认不做不确定的图片能力兜底

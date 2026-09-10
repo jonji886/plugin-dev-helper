@@ -1,0 +1,6 @@
+{
+  "name": "buggy-kujiale-tool",
+  "version": "0.1.0",
+  "frame": "ui.html",
+  "main": "vm.js"
+}

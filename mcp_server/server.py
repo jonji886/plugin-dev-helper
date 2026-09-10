@@ -26,7 +26,8 @@ INSTRUCTIONS = (
     "Plugin Developer MCP 提供插件 SDK / API / 类型 / 开发文档的结构化查询。"
     "自然语言问题用 search_docs；精确 API 定义用 get_api；构造参数前用 get_type；"
     "展开依赖用 get_related_symbols；找官方示例用 get_examples；"
-    "改完代码用 validate_api_usage 自检。"
+    "涉及酷家乐工具插件时，开发前用 get_plugin_constraints，必要时用 get_plugin_scaffold，"
+    "改完项目用 validate_plugin_project；改完单段 API 代码可用 validate_api_usage 自检。"
     "查不到时会明确返回 not_found，不要臆造 API。"
 )
 

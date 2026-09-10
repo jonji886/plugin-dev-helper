@@ -11,7 +11,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Callable
 
-COUNT_KEYS = ("results", "examples", "issues", "candidate_symbols")
+COUNT_KEYS = ("results", "examples", "issues", "candidate_symbols", "findings")
 
 
 class McpTelemetry:
@@ -74,6 +74,9 @@ class McpTelemetry:
             value = payload.get(key)
             if isinstance(value, list):
                 result_count = max(result_count, len(value))
+            nested = payload.get("data")
+            if isinstance(nested, dict) and isinstance(nested.get(key), list):
+                result_count = max(result_count, len(nested[key]))
 
         payload.setdefault("status", status)
         payload["request_id"] = request_id

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN">
+  <body>
+    <button id="load">读取方案</button>
+    <script>
+      document.getElementById("load").addEventListener("click", () => {
+        // 错误：UI 直接调用 IDP API。
+        const designId = IDP.Design.getDesignId();
+        window.parent.postMessage({ action: "getDesignJson" }, "*");
+      });
+      window.addEventListener("message", (event) => {
+        if (event.data.action === "unhandledResult") {
+          document.getElementById("load").textContent = event.data.data;
+        }
+      });
+    </script>
+  </body>
+</html>

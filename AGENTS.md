@@ -321,6 +321,16 @@ type: description
 ## 文档
 - [ ] 是否需要更新说明？
 
+## Kujiale Plugin Development
+
+涉及酷家乐工具插件开发时：
+
+1. 开始实现前必须调用 `get_plugin_constraints`；需要最小合法结构时调用 `get_plugin_scaffold`。
+2. 对不确定的 API、运行环境和通信机制，必须优先查询 MCP，不得凭经验猜测。
+3. 插件主要代码完成后必须调用 `validate_plugin_project`。
+4. 存在 Critical Finding 时不得视为开发完成；High Finding 应优先修复，无法修复时明确记录原因。
+5. 酷家乐平台约束以 MCP Rule Layer 为事实来源，不在 AGENTS.md 重复维护完整规则。
+
 ---
 
 # Core Principles
