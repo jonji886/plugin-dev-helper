@@ -1,0 +1,177 @@
+{
+  "meta": {
+    "version": "0.1.0",
+    "description": "Plugin Developer MCP 效果评测任务集。每个任务给 Coding Agent 一个最小插件工程（fixtures/ 下），要求其通过 MCP 查询 SDK/API/类型并修改代码，最终以 typecheck/build/字符串断言 自动验收。",
+    "evaluation_dimensions": [
+      "API 查找准确性",
+      "参数/类型构造正确性",
+      "UI/VM 通信正确性",
+      "错误修复能力",
+      "不存在的 API 拒绝编造",
+      "信息不足时先查询确认"
+    ],
+    "protocol": "对每个任务，分别在【无 MCP】和【接入 MCP】两种条件下运行同一 Coding Agent，使用同一 prompt，采集：是否通过 acceptance、调用 MCP 工具的类型/次数、最终代码正确性、token 消耗。对比结果写入 results/comparison.md。"
+  },
+  "tasks": [
+    {
+      "id": "T01",
+      "title": "查找并调用基础 API（退出小程序）",
+      "category": "api_lookup",
+      "description": "实现退出当前小程序的函数。",
+      "initial_project": "fixtures/T01-exit-miniapp",
+      "task_prompt": "在 vm.ts 中实现 exitMiniapp 函数：调用酷家乐插件 SDK 提供的退出小程序 API。",
+      "expected_behavior": "调用 IDP.Miniapp.exit()，无参数，返回 void。",
+      "reference_symbols": ["IDP.Miniapp.exit"],
+      "mcp_tools_expected": ["get_api", "search_docs"],
+      "acceptance": {
+        "typecheck": true,
+        "build": true,
+        "tests": ["contains:IDP.Miniapp.exit"]
+      }
+    },
+    {
+      "id": "T02",
+      "title": "按类型构造参数（上传临时数据）",
+      "category": "type_construction",
+      "description": "调用上传临时数据 API，需正确构造 option 参数。",
+      "initial_project": "fixtures/T02-upload-data",
+      "task_prompt": "在 vm.ts 中实现 upload 函数：调用 SDK 的上传临时数据 API，参数由函数入参 miniappId 与 data 构造。",
+      "expected_behavior": "调用 IDP.Miniapp.uploadDataAsync({ miniappId, data })，参数符合 MiniappUploadDataOption（miniappId: string, data: string）。",
+      "reference_symbols": ["IDP.Miniapp.uploadDataAsync", "MiniappUploadDataOption"],
+      "mcp_tools_expected": ["get_api", "get_type"],
+      "acceptance": {
+        "typecheck": true,
+        "build": true,
+        "tests": ["contains:uploadDataAsync", "contains:miniappId", "contains:data"]
+      }
+    },
+    {
+      "id": "T03",
+      "title": "使用相关 Type/Enum（判断工具类型）",
+      "category": "enum_usage",
+      "description": "判断当前是否处于衣柜工具，需使用枚举常量。",
+      "initial_project": "fixtures/T03-tool-type-enum",
+      "task_prompt": "在 vm.ts 中实现 isWardrobe 函数：判断当前是否处于衣柜工具，返回 boolean。",
+      "expected_behavior": "调用 IDP.Custom.Common.getCurrentToolType() 并与 IDP.Custom.Common.ToolType.Wardrobe 比较。",
+      "reference_symbols": ["IDP.Custom.Common.getCurrentToolType", "IDP.Custom.Common.ToolType.Wardrobe"],
+      "mcp_tools_expected": ["get_api", "get_type"],
+      "acceptance": {
+        "typecheck": true,
+        "build": true,
+        "tests": ["contains:getCurrentToolType", "contains:ToolType.Wardrobe"]
+      }
+    },
+    {
+      "id": "T04",
+      "title": "UI/VM 通信：向 UI 发送消息",
+      "category": "ui_vm_comm",
+      "description": "把数据从 VM 发送到插件 UI。",
+      "initial_project": "fixtures/T04-post-message",
+      "task_prompt": "在 vm.ts 中实现 sendToUi 函数：把 data 发送到插件 UI（iframe）。",
+      "expected_behavior": "调用 IDP.Miniapp.view.defaultFrame.postMessage(data, '*')。",
+      "reference_symbols": ["IDP.Miniapp.view.defaultFrame.postMessage"],
+      "mcp_tools_expected": ["get_api", "get_type"],
+      "acceptance": {
+        "typecheck": true,
+        "build": true,
+        "tests": ["contains:defaultFrame.postMessage"]
+      }
+    },
+    {
+      "id": "T05",
+      "title": "事件监听：监听 UI 消息",
+      "category": "event_listening",
+      "description": "监听插件 UI 发来的消息。",
+      "initial_project": "fixtures/T05-on-message",
+      "task_prompt": "在 vm.ts 中实现 listenUiMessages 函数：监听 UI 发来的消息并回调 handler(data)。",
+      "expected_behavior": "调用 IDP.Miniapp.view.defaultFrame.onMessageReceive((data, origin) => handler(data))。",
+      "reference_symbols": ["IDP.Miniapp.view.defaultFrame.onMessageReceive"],
+      "mcp_tools_expected": ["get_api", "get_type"],
+      "acceptance": {
+        "typecheck": true,
+        "build": true,
+        "tests": ["contains:onMessageReceive"]
+      }
+    },
+    {
+      "id": "T06",
+      "title": "修改已有插件代码（设置窗口选项）",
+      "category": "modify_existing",
+      "description": "修正一段编译失败的既有代码。",
+      "initial_project": "fixtures/T06-set-container-options",
+      "task_prompt": "vm.ts 中的 setWindowOptions 编译失败，请修复它，使窗口可最小化。",
+      "expected_behavior": "调用 IDP.Miniapp.view.setContainerOptions(IDP.Miniapp.view.defaultFrame, { minimizable: true })，frame 参数不能省略。",
+      "reference_symbols": ["IDP.Miniapp.view.setContainerOptions", "MainMountPointOptions"],
+      "mcp_tools_expected": ["get_api", "get_type"],
+      "acceptance": {
+        "typecheck": true,
+        "build": true,
+        "tests": ["contains:setContainerOptions", "contains:minimizable"]
+      }
+    },
+    {
+      "id": "T07",
+      "title": "修复错误 API 名称",
+      "category": "fix_wrong_api",
+      "description": "既有代码调用了不存在的 API，需修正。",
+      "initial_project": "fixtures/T07-fix-wrong-api",
+      "task_prompt": "vm.ts 中调用了一个不存在的 API（exitMiniapp），请查证并修正为正确的退出 API。",
+      "expected_behavior": "将 IDP.Miniapp.exitMiniapp() 修正为 IDP.Miniapp.exit()。",
+      "reference_symbols": ["IDP.Miniapp.exit"],
+      "mcp_tools_expected": ["get_api", "validate_api_usage", "search_docs"],
+      "acceptance": {
+        "typecheck": true,
+        "build": true,
+        "tests": ["contains:IDP.Miniapp.exit", "not_contains:exitMiniapp"]
+      }
+    },
+    {
+      "id": "T08",
+      "title": "修复错误参数名",
+      "category": "fix_wrong_params",
+      "description": "既有代码参数名拼写错误，需修正。",
+      "initial_project": "fixtures/T08-fix-wrong-params",
+      "task_prompt": "vm.ts 中 uploadDataAsync 的参数写错了字段名（dat），请查证正确字段并修复。",
+      "expected_behavior": "将 { miniappId, dat } 修正为 { miniappId, data }。",
+      "reference_symbols": ["IDP.Miniapp.uploadDataAsync", "MiniappUploadDataOption"],
+      "mcp_tools_expected": ["get_api", "get_type", "validate_api_usage"],
+      "acceptance": {
+        "typecheck": true,
+        "build": true,
+        "tests": ["contains:miniappId", "contains:data", "not_contains:dat"]
+      }
+    },
+    {
+      "id": "T09",
+      "title": "处理不存在的 API（拒绝编造）",
+      "category": "reject_hallucination",
+      "description": "任务要求调用一个不存在的 API，Agent 应明确说明不存在而非编造。",
+      "initial_project": "fixtures/T09-nonexistent-api",
+      "task_prompt": "实现 closeMiniapp 函数：调用 SDK 中「关闭小程序」的 API（IDP.Miniapp.closeMiniapp）。",
+      "expected_behavior": "Agent 通过 MCP 查证后明确报告该 API 不存在，不编造调用；代码不得包含不存在的 API，可用注释说明并给出最接近的真实 API（IDP.Miniapp.exit）。",
+      "reference_symbols": ["IDP.Miniapp.exit"],
+      "mcp_tools_expected": ["get_api", "search_docs"],
+      "acceptance": {
+        "typecheck": true,
+        "build": true,
+        "tests": ["not_contains:IDP.Miniapp.closeMiniapp"]
+      }
+    },
+    {
+      "id": "T10",
+      "title": "信息不足时先查询确认参数",
+      "category": "insufficient_info",
+      "description": "需求描述模糊，Agent 应先查询字段定义再写代码。",
+      "initial_project": "fixtures/T10-vague-requirement",
+      "task_prompt": "实现 placeWindow 函数：把插件窗口摆到合适的位置并允许最小化。字段名和可选性请以 SDK 类型定义为准。",
+      "expected_behavior": "先查 setContainerOptions 与 MainMountPointOptions，再写出符合类型定义的参数（如 windowMode、minimizable 等合法字段）。",
+      "reference_symbols": ["IDP.Miniapp.view.setContainerOptions", "MainMountPointOptions"],
+      "mcp_tools_expected": ["get_api", "get_type"],
+      "acceptance": {
+        "typecheck": true,
+        "build": true,
+        "tests": ["contains:setContainerOptions", "contains:minimizable"]
+      }
+    }
+  ]
+}

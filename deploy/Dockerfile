@@ -28,6 +28,7 @@ COPY agent ./agent
 COPY eval ./eval
 COPY graph_builder ./graph_builder
 COPY knowledge_builder ./knowledge_builder
+COPY mcp_server ./mcp_server
 COPY sdk_parser ./sdk_parser
 COPY scripts ./scripts
 COPY vector_store ./vector_store

@@ -18,6 +18,7 @@ dependencies = [
     "numpy>=1.24.0,<2.0.0",
     "torch>=2.2.0,<2.5.0",
     "transformers>=4.41.0,<5.0.0",
+    "mcp>=1.12,<2",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +42,9 @@ packages = [
     "eval",
     "graph_builder",
     "knowledge_builder",
+    "mcp_server",
+    "mcp_server.services",
+    "mcp_server.tools",
     "sdk_parser",
     "scripts",
     "vector_store",

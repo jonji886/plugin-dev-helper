@@ -15,6 +15,31 @@ services:
       retries: 5
       start_period: 30s
 
+  # Plugin Developer MCP：Streamable HTTP（/mcp + /health）
+  # 与 backend 共用同一份知识库数据，仅暴露只读查询工具。
+  mcp:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.mcp
+    container_name: kujiale-mcp
+    command: ["python", "-m", "mcp_server"]
+    ports:
+      - "${MCP_HOST_PORT:-8011}:8001"
+    environment:
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8001
+      MCP_STATELESS_HTTP: "true"
+      MCP_JSON_RESPONSE: "true"
+      # DNS rebinding 防护：默认放行本机，追加公网 Host（可经 .env 覆盖）
+      MCP_ALLOWED_HOSTS: "${MCP_ALLOWED_HOSTS:-127.0.0.1:*,localhost:*,[::1]:*,124.223.217.62:*}"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
   frontend:
     build:
       # context 相对本文件（deploy/），指向项目根目录的前端源码

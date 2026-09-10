@@ -1,0 +1,41 @@
+# Plugin Developer MCP 镜像（只读查询服务）
+#
+# 复用 backend 镜像（kujiale-deploy_*）已经装好的重型依赖
+# （torch CPU / chromadb / sentence-transformers / fastapi），
+# 只额外安装 MCP SDK 并覆盖最新源码，避免在腾讯云慢镜像上重复下载数 GB 依赖。
+#
+# 若在全新服务器上构建，需先构建 backend 镜像（deploy/Dockerfile），
+# 或将本文件 FROM 改为 python:3.11-slim 并补全依赖安装步骤。
+FROM kujiale-deploy_20260803201400-backend:latest
+
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1
+
+# 覆盖为最新源码（含 mcp_server）
+COPY pyproject.toml ./
+COPY app ./app
+COPY agent ./agent
+COPY eval ./eval
+COPY graph_builder ./graph_builder
+COPY knowledge_builder ./knowledge_builder
+COPY mcp_server ./mcp_server
+COPY sdk_parser ./sdk_parser
+COPY scripts ./scripts
+COPY vector_store ./vector_store
+COPY prompts ./prompts
+
+# 已构建好的知识库数据（chroma 向量库 + knowledge + graph）
+COPY data ./data
+
+# embedding 模型离线缓存（all-MiniLM-L6-v2）
+COPY hf_cache /root/.cache/huggingface
+
+# 只新增 MCP SDK（其余依赖 base 镜像已满足）
+RUN pip install --no-cache-dir "mcp>=1.12,<2" \
+    && rm -rf /root/.cache/pip
+
+EXPOSE 8001
+CMD ["python", "-m", "mcp_server"]

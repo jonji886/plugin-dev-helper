@@ -327,6 +327,50 @@ cd frontend && npm run dev
 
 如需 Langfuse：`.venv/bin/pip install -e ".[dev,observability]"`，再在 `.env` 中填写配置。Docker 部署配置位于 [`deploy/docker-compose.yml`](deploy/docker-compose.yml)，镜像默认复制已构建知识库和 embedding 缓存。
 
+### Plugin Developer MCP Server
+
+除面向用户的 Chat UI 外，项目还内置一个**只读** MCP Server，供本地 Coding Agent（Claude / Cursor / CodeBuddy 等）通过 MCP 协议查询插件 SDK / API / 类型 / 开发文档，进而修改本地插件工程并执行 Build/Test。
+
+```bash
+# 本地启动（Streamable HTTP，默认 http://127.0.0.1:8001/mcp）
+.venv/bin/python -m mcp_server
+# 健康检查 / 就绪检查
+curl http://127.0.0.1:8001/health
+curl http://127.0.0.1:8001/ready
+```
+
+MCP 客户端配置示例：
+
+```json
+{
+  "mcpServers": {
+    "plugin-developer-mcp": {
+      "url": "http://127.0.0.1:8001/mcp",
+      "transport": "streamable-http"
+    }
+  }
+}
+```
+
+只读工具：
+
+| 工具 | 作用 |
+|---|---|
+| `search_docs` | 自然语言检索 SDK/API/文档，返回带 `source/source_lines/sdk_version` 的结构化片段 |
+| `get_api` | 按符号精确查 API 定义（参数、返回值、源码位置、SDK 版本）；无精确匹配时返回 `candidate_symbols`，不冒充精确结果 |
+| `get_type` | 查 interface/type/enum 的字段、是否必填、枚举值、依赖类型 |
+| `get_related_symbols` | 查符号的依赖/被引关系，构造参数前展开相关类型 |
+| `get_examples` | 从 docs/rag 与知识库返回官方代码示例（只返回真实片段，不临时生成冒充官方） |
+| `validate_api_usage` | 静态校验代码里的 API 用法（不存在 API、错误 namespace/参数名、缺必填、SDK 版本不一致） |
+
+远程部署复用 [`deploy/docker-compose.yml`](deploy/docker-compose.yml) 的 `mcp` 服务（镜像 [`deploy/Dockerfile.mcp`](deploy/Dockerfile.mcp)），用 `MCP_HOST_PORT` 指定宿主机端口。
+
+> MCP SDK 自带 **DNS rebinding 防护**：默认只放行 `127.0.0.1` / `localhost` / `[::1]` 的 Host 头。
+> 若通过公网 IP / 域名访问，需在环境变量 `MCP_ALLOWED_HOSTS`（逗号分隔，支持 `host:*` 通配端口）
+> 追加对应 Host，例如 `MCP_ALLOWED_HOSTS=127.0.0.1:*,localhost:*,[::1]:*,124.223.217.62:*`。
+
+离线效果评测见 [`benchmark/`](benchmark/)：10 个任务覆盖 API 查找、类型构造、UI/VM 通信、错误修复、拒绝编造、信息不足先查询，用 `scripts/check_benchmark_task.py` 自动验收。
+
 ## 15. 测试与验证
 
 ```bash
@@ -359,6 +403,8 @@ knowledge_builder/   知识单元构建
 sdk_parser/          TypeScript AST 解析
 prompts/             Git-based Prompt 版本
 eval/                Golden Dataset、评分、A/B 报告与 Regression Gate
+mcp_server/          MCP Server（工具、服务、配置、遥测，只读查询）
+benchmark/           MCP 效果评测任务集与验收脚本
 scripts/             知识构建、失败案例导出、评测入口
 frontend/            Next.js Chat UI 与 Feedback UI
 deploy/              Docker 镜像与 Compose
