@@ -65,7 +65,7 @@ def get_settings() -> Settings:
         llm_max_retries=_positive_int("LLM_MAX_RETRIES", 2),
         langfuse_enabled=os.getenv("LANGFUSE_ENABLED", "false").lower() in {"1", "true", "yes"},
         default_llm_provider=os.getenv("DEFAULT_LLM_PROVIDER", "deepseek"),
-        default_llm_model=os.getenv("DEFAULT_LLM_MODEL", "deepseek-chat"),
+        default_llm_model=os.getenv("DEFAULT_LLM_MODEL", "deepseek-v4-flash"),
         fast_llm_provider=os.getenv("FAST_LLM_PROVIDER", ""),
         fast_llm_model=os.getenv("FAST_LLM_MODEL", ""),
         strong_llm_provider=os.getenv("STRONG_LLM_PROVIDER", ""),

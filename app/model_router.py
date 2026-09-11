@@ -111,7 +111,7 @@ class ModelRouter:
         provider, model = self._profile("DEFAULT")
         if not model:
             provider = provider or "deepseek"
-            model = model or "deepseek-chat"
+            model = model or "deepseek-v4-flash"
         return ModelRoute(
             provider=provider,
             model=model,
@@ -145,7 +145,7 @@ class ModelRouter:
         default_provider, default_model = self._profile("DEFAULT")
         if not default_model:
             default_provider = "deepseek"
-            default_model = "deepseek-chat"
+            default_model = "deepseek-v4-flash"
 
         profile = "default"
         reason = "default model for general developer QA"

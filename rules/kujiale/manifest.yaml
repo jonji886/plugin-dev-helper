@@ -1,0 +1,96 @@
+rules:
+  - id: KJL-MANIFEST-001
+    platform: kujiale
+    category: manifest
+    scope: manifest
+    severity: critical
+    title: Manifest 必须存在
+    description: 每个酷家乐工具插件必须包含 manifest.json。
+    detection:
+      type: file_exists
+      path: manifest.json
+    confidence: high
+    suggestion: 在插件根目录新增 manifest.json，并声明插件元数据与入口文件。
+    references: [kujiale_plugin_runtime]
+    keywords: [manifest, 插件, 工具插件]
+    score_category: structure
+
+  - id: KJL-MANIFEST-002
+    platform: kujiale
+    category: manifest
+    scope: manifest
+    severity: critical
+    title: Manifest 必须声明 frame
+    description: manifest.frame 必须存在，并指向有效 HTML 文件。
+    detection:
+      type: manifest_field_and_file
+      field: frame
+      extension: html
+    confidence: high
+    suggestion: 将 frame 设置为插件内真实存在的 .html UI 文件路径。
+    references: [kujiale_plugin_runtime]
+    keywords: [frame, UI, html, iframe]
+    score_category: structure
+
+  - id: KJL-MANIFEST-003
+    platform: kujiale
+    category: manifest
+    scope: manifest
+    severity: critical
+    title: Manifest 必须声明 main
+    description: manifest.main 必须存在，并指向有效 JavaScript VM 文件。
+    detection:
+      type: manifest_field_and_file
+      field: main
+      extension: javascript
+    confidence: high
+    suggestion: 将 main 设置为插件内真实存在的 .js VM 文件路径。
+    references: [kujiale_plugin_runtime]
+    keywords: [main, VM, javascript, js]
+    score_category: structure
+
+  - id: KJL-MANIFEST-004
+    platform: kujiale
+    category: manifest
+    scope: manifest
+    severity: critical
+    title: Manifest 必须是合法 JSON
+    description: manifest.json 必须是可解析的 JSON 对象。
+    detection:
+      type: json_parse
+    confidence: high
+    suggestion: 修复 manifest.json 的 JSON 语法，并确保根值为对象。
+    references: [kujiale_plugin_runtime]
+    keywords: [manifest, JSON]
+    score_category: structure
+
+  - id: KJL-MANIFEST-005
+    platform: kujiale
+    category: manifest
+    scope: manifest
+    severity: critical
+    title: Manifest 必须声明基本元数据
+    description: manifest.name 和 manifest.version 必须存在且非空。
+    detection:
+      type: required_fields
+      fields: [name, version]
+    confidence: high
+    suggestion: 补充非空的 name 与 version 字段。
+    references: [kujiale_plugin_runtime]
+    keywords: [manifest, name, version]
+    score_category: structure
+
+  - id: KJL-MANIFEST-006
+    platform: kujiale
+    category: manifest
+    scope: manifest
+    severity: critical
+    title: Manifest 入口路径必须位于插件目录内
+    description: frame 和 main 只能引用插件项目目录内的文件。
+    detection:
+      type: relative_path
+    confidence: high
+    suggestion: 使用相对于插件根目录的安全入口路径，不要使用绝对路径或 .. 越界路径。
+    references: [kujiale_plugin_runtime]
+    keywords: [manifest, 路径, frame, main]
+    score_category: structure

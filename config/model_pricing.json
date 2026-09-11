@@ -19,6 +19,26 @@
     "input_unit": 1000000,
     "output_unit": 1000000
   },
+  "deepseek:deepseek-v4-flash": {
+    "currency": "USD",
+    "input_price": 0.14,
+    "output_price": 0.28,
+    "input_unit": 1000000,
+    "output_unit": 1000000,
+    "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+    "source_retrieved_at": "2026-08-26",
+    "notes": "按 cache miss 输入价格估算，未计入可能的峰谷时段差异"
+  },
+  "deepseek:deepseek-v4-pro": {
+    "currency": "USD",
+    "input_price": 0.435,
+    "output_price": 0.87,
+    "input_unit": 1000000,
+    "output_unit": 1000000,
+    "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+    "source_retrieved_at": "2026-08-26",
+    "notes": "按 cache miss 输入价格估算，未计入可能的峰谷时段差异"
+  },
   "siliconflow:Qwen/Qwen3-8B": {
     "currency": "CNY",
     "input_price": 0.0,

@@ -1,0 +1,6 @@
+{
+  "name": "valid-kujiale-tool",
+  "version": "1.0.0",
+  "frame": "ui.html",
+  "main": "vm.js"
+}

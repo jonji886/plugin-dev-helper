@@ -1,5 +1,7 @@
 # Plugin Dev Helper
 
+[![CI](https://github.com/jonji886/plugin-dev-helper/actions/workflows/ci.yml/badge.svg)](https://github.com/jonji886/plugin-dev-helper/actions/workflows/ci.yml)
+
 > 面向 SDK / API / TypeScript 源码和插件开发文档的 **Enterprise Developer Copilot**。它把结构化知识构建、Hybrid RAG、LangGraph Workflow、可验证 Citation、Observability、用户反馈和离线评测连接成一个可持续改进的 AI 应用闭环。
 
 本项目不是通用 Chatbot，也不是只展示向量检索的 PDF RAG Demo。目标用户是使用设计平台开放能力的研发人员；目标是让开发者更快找到正确 API、理解参数和源码、生成可执行示例，并能追溯答案依据。
@@ -165,6 +167,8 @@ python3 scripts/check_retrieval_gate.py
 
 最近一次真实路由验收（2026-08-25）为 4/4 角色命中、0 失败：常规问答 → Main（DeepSeek V4 Flash），代码 → Reason（GLM-5.1），复杂推理 → Reason（GLM-5.1），截图识别 → Vision（Qwen3-VL-32B）。本批 `/api/metrics` 增量为 12,103 tokens、估算成本 ¥0.101654；全窗口快照为 P50 27.42s、P95 56.70s、失败率 0%。
 
+故障转移请求级验收使用 [`tests/test_failover_request.py`](tests/test_failover_request.py)：通过注入 SiliconFlow 超时验证 `/api/chat` 会返回官方 DeepSeek 的 provider/model/route reason，并在 `/api/metrics` 中只记录一次请求的 token、成本和成功状态；同时验证 401 认证错误不会切换且会正确计入失败率。该测试不调用真实模型、不消耗额度；真实 Provider 故障演练应在预发布环境通过受控超时配置执行。
+
 ## 7. Observability
 
 Langfuse 是可选依赖和可选开关：
@@ -245,9 +249,11 @@ REASON=Pro/zai-org/GLM-5.1
 VISION=Qwen/Qwen3-VL-32B-Instruct
 ```
 
+如果同时配置官方 `DEEPSEEK_API_KEY`，系统通过 Adapter 为文本角色启用故障转移：SiliconFlow 的一次请求出现超时、连接断开、429 或 5xx 等可恢复错误后，Router/Main/Reason 默认切换到官方 `deepseek-v4-flash`。主 Provider 的重试默认降为 0，DeepSeek 备份调用默认最多等待 30 秒且不重试，避免两套重试叠加放大延迟。官方接口默认地址为 `https://api.deepseek.com`；可通过 `DEEPSEEK_FALLBACK_*_MODEL` 覆盖映射。Vision 默认不启用 DeepSeek 兜底，避免把不确定的图像能力当成可用能力。
+
 如果四角色变量均未设置，系统继续兼容旧配置：`MODEL_GLM` → default、`MODEL_QWEN` → fast、`MODEL_DEEPSEEK` → strong；显式 `DEFAULT/FAST/STRONG_LLM_PROVIDER/MODEL` 优先级更高。缺失的可选角色会回退到 Main，并在 `GET /api/ready` 的 `model_role_status` 标记 `fallback=true`。
 
-路由不会把 API Key 写入响应或 Trace；`GET /api/ready` 会返回脱敏后的 `model_routes` 和各角色可用性。SiliconFlow 使用 OpenAI-compatible 接口，模型 ID 必须使用平台中实际可用的模型标识；Vision 角色应配置支持图像输入的模型。
+路由不会把 API Key 写入响应或 Trace；`GET /api/ready` 会返回脱敏后的 `model_routes`、已绑定的 `fallback_routes` 和各角色可用性。SiliconFlow 使用 OpenAI-compatible 接口，模型 ID 必须使用平台中实际可用的模型标识；Vision 角色应配置支持图像输入的模型。
 
 价格集中在 [`config/model_pricing.json`](config/model_pricing.json)，每次调用从 provider response metadata 读取 token，缺失时使用明确的字符数估算，并计算 `estimated_cost`。当前四角色绑定的官方价格（每百万 Token，CNY，抓取于 2026-08-24）如下；GLM-5.1 Pro 按输入是否超过 32K 分档：
 
@@ -260,10 +266,13 @@ VISION=Qwen/Qwen3-VL-32B-Instruct
 
 价格来源为[硅基流动官方模型价格中心](https://cloud-rd.siliconflow.cn/pricing)，价格可能随账户、时段和平台政策变化；未知模型仍只统计 Token，成本显示为 `0`，不会伪造金额。
 
+官方 DeepSeek 兜底默认使用 `deepseek-v4-flash`，成本配置按官方价格中心的 cache-miss 输入价格估算为 `$0.14/$0.28`（输入/输出，每百万 Token）；配置文件同时保留 `deepseek-v4-pro` 的可选价格记录。价格可能随峰谷时段和官方政策变化，详见[DeepSeek 官方模型与价格](https://api-docs.deepseek.com/quick_start/pricing/)。
+
 ## 11. Reliability & Safety
 
 - Langfuse 默认关闭，远程上报失败不影响业务请求。
 - LLM 超时、重试次数、检索 Top-K 都由环境变量控制；当前中转配置建议 `LLM_TIMEOUT_SECONDS=60` 供 Main/Reason/Vision 使用，Router 使用独立的 15 秒预算。
+- Provider 通过 Adapter 隔离；SiliconFlow → 官方 DeepSeek 的故障转移只对超时、连接错误、429 和 5xx 等瞬时错误生效，401/403/422 等配置或请求错误不会盲目切换。
 - 服务启动阶段会预热本地 embedding 模型；`GET /api/ready` 返回 `embedding_ready` 和 `embedding_warmup_ms`，避免首个用户请求承担模型加载成本。
 - 每个请求在上下文隔离范围内统计 token 和估算成本，不会把前序请求的累计值重复写入当前请求；`ANSWER_CONTEXT_MAX_CHARS` 默认限制证据上下文为 6000 字符，Relay 较慢时可适当下调。
 - 模型不可用时返回本地知识库兜底内容，不伪装成模型答案。
@@ -318,6 +327,75 @@ cd frontend && npm run dev
 
 如需 Langfuse：`.venv/bin/pip install -e ".[dev,observability]"`，再在 `.env` 中填写配置。Docker 部署配置位于 [`deploy/docker-compose.yml`](deploy/docker-compose.yml)，镜像默认复制已构建知识库和 embedding 缓存。
 
+### Plugin Developer MCP Server
+
+除面向用户的 Chat UI 外，项目还内置一个**只读** MCP Server，供本地 Coding Agent（Claude / Cursor / CodeBuddy 等）通过 MCP 协议查询插件 SDK / API / 类型 / 开发文档，进而修改本地插件工程并执行 Build/Test。
+
+```bash
+# 本地启动（Streamable HTTP，默认 http://127.0.0.1:8001/mcp）
+.venv/bin/python -m mcp_server
+# 健康检查 / 就绪检查
+curl http://127.0.0.1:8001/health
+curl http://127.0.0.1:8001/ready
+```
+
+MCP 客户端配置示例：
+
+```json
+{
+  "mcpServers": {
+    "plugin-developer-mcp": {
+      "url": "http://127.0.0.1:8001/mcp",
+      "transport": "streamable-http"
+    }
+  }
+}
+```
+
+只读工具：
+
+| 工具 | 作用 |
+|---|---|
+| `search_docs` | 自然语言检索 SDK/API/文档，返回带 `source/source_lines/sdk_version` 的结构化片段 |
+| `get_api` | 按符号精确查 API 定义（参数、返回值、源码位置、SDK 版本）；无精确匹配时返回 `candidate_symbols`，不冒充精确结果 |
+| `get_type` | 查 interface/type/enum 的字段、是否必填、枚举值、依赖类型 |
+| `get_related_symbols` | 查符号的依赖/被引关系，构造参数前展开相关类型 |
+| `get_examples` | 从 docs/rag 与知识库返回官方代码示例（只返回真实片段，不临时生成冒充官方） |
+| `validate_api_usage` | 静态校验代码里的 API 用法（不存在 API、错误 namespace/参数名、缺必填、SDK 版本不一致） |
+| `get_plugin_constraints` | 按平台组件和任务返回酷家乐工具插件的结构化约束，Critical/High 优先 |
+| `get_plugin_scaffold` | 返回最小 `manifest.json`、`ui.html`、`vm.js` 骨架和 UI/VM 职责边界 |
+| `validate_plugin_project` | 扫描插件 Manifest、UI、VM 和消息 action，返回评分与可定位 Finding |
+
+### Kujiale Plugin Guardrails
+
+酷家乐工具插件不是普通 Web 项目：UI 运行在 iframe 中，负责 DOM、用户交互和网络请求；VM 负责调用 `IDP` 插件 API，但不能依赖 DOM、浏览器网络请求或定时器。UI 与 VM 之间应通过 `window.parent.postMessage` 和 `defaultFrame.postMessage` 通信。
+
+这些强约束维护在 [`rules/kujiale/`](rules/kujiale) 的结构化 Rule Layer 中。Knowledge 继续负责 API 文档、参数、示例和教程；Rule Layer 负责“必须 / 禁止 / 只能”等可验证约束。`AGENTS.md` 只规定调用时机，不复制平台规则。
+
+推荐的 Coding Agent 链路是：
+
+```text
+用户需求
+  → get_plugin_constraints
+  → get_plugin_scaffold（需要时）
+  → 查询 API / 文档并生成代码
+  → validate_plugin_project
+  → 修复 Critical / High Finding
+  → 再次 validate_plugin_project
+```
+
+`validate_plugin_project` 当前只扫描酷家乐工具插件的 `manifest.json`、HTML UI 和 JavaScript VM。返回结果包含 `score`、按严重级别汇总，以及 `rule_id`、文件、行号、风险、修改建议和 `confidence`。`Critical` Finding 会使结果不能通过；启发式检查会降低 confidence，避免把不确定的语义问题伪装成确定错误。
+
+可直接扫描故意包含违规的 [`demos/buggy_kujiale_plugin/`](demos/buggy_kujiale_plugin)。规则来自当前项目维护的插件开发知识和约束；本项目属于个人技术 POC，不代表酷家乐官方规范的完整或永久版本。
+
+远程部署复用 [`deploy/docker-compose.yml`](deploy/docker-compose.yml) 的 `mcp` 服务（镜像 [`deploy/Dockerfile.mcp`](deploy/Dockerfile.mcp)），用 `MCP_HOST_PORT` 指定宿主机端口。
+
+> MCP SDK 自带 **DNS rebinding 防护**：默认只放行 `127.0.0.1` / `localhost` / `[::1]` 的 Host 头。
+> 若通过公网 IP / 域名访问，需在环境变量 `MCP_ALLOWED_HOSTS`（逗号分隔，支持 `host:*` 通配端口）
+> 追加对应 Host，例如 `MCP_ALLOWED_HOSTS=127.0.0.1:*,localhost:*,[::1]:*,124.223.217.62:*`。
+
+离线效果评测见 [`benchmark/`](benchmark/)：10 个任务覆盖 API 查找、类型构造、UI/VM 通信、错误修复、拒绝编造、信息不足先查询，用 `scripts/check_benchmark_task.py` 自动验收。
+
 ## 15. 测试与验证
 
 ```bash
@@ -350,6 +428,9 @@ knowledge_builder/   知识单元构建
 sdk_parser/          TypeScript AST 解析
 prompts/             Git-based Prompt 版本
 eval/                Golden Dataset、评分、A/B 报告与 Regression Gate
+mcp_server/          MCP Server（工具、服务、Rule、配置、遥测，只读查询）
+rules/               酷家乐结构化 Guardrail 规则（唯一平台约束事实源）
+benchmark/           MCP 效果评测任务集与验收脚本
 scripts/             知识构建、失败案例导出、评测入口
 frontend/            Next.js Chat UI 与 Feedback UI
 deploy/              Docker 镜像与 Compose

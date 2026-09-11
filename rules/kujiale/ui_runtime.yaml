@@ -1,0 +1,17 @@
+rules:
+  - id: KJL-UI-001
+    platform: kujiale
+    category: api_usage
+    scope: ui
+    severity: critical
+    title: UI 不允许直接调用酷家乐插件 API
+    description: UI 运行于 iframe 浏览器环境，IDP 插件 API 必须在 VM 中调用。
+    detection:
+      type: static_pattern
+      patterns: [IDP.*]
+    confidence: high
+    suggestion: 将 IDP API 调用移动到 VM，UI 使用 window.parent.postMessage 请求并接收结果。
+    references: [kujiale_plugin_runtime]
+    keywords: [IDP, API, UI, iframe, 设计, 方案]
+    required_patterns: [IDP API 在 VM 调用]
+    score_category: api_usage

@@ -1,0 +1,7 @@
+<!doctype html>
+<html><body><script>
+  window.parent.postMessage({ action: "uiRequest" }, "*");
+  window.addEventListener("message", (event) => {
+    if (event.data.action === "uiResponse") document.body.textContent = "done";
+  });
+</script></body></html>

@@ -18,6 +18,8 @@ dependencies = [
     "numpy>=1.24.0,<2.0.0",
     "torch>=2.2.0,<2.5.0",
     "transformers>=4.41.0,<5.0.0",
+    "mcp>=1.12,<2",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -41,10 +43,19 @@ packages = [
     "eval",
     "graph_builder",
     "knowledge_builder",
+    "mcp_server",
+    "mcp_server.services",
+    "mcp_server.rules",
+    "mcp_server.tools",
+    "rules",
+    "rules.kujiale",
     "sdk_parser",
     "scripts",
     "vector_store",
 ]
+
+[tool.setuptools.package-data]
+"rules.kujiale" = ["*.yaml"]
 
 [build-system]
 requires = ["setuptools>=68.0"]

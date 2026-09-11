@@ -50,6 +50,12 @@ class MetricsStore:
                     status TEXT NOT NULL DEFAULT 'NEW', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     reviewed_at TEXT, promoted_at TEXT, FOREIGN KEY (request_id) REFERENCES request_logs(request_id)
                 );
+                CREATE TABLE IF NOT EXISTS mcp_tool_logs (
+                    request_id TEXT PRIMARY KEY, tool_name TEXT NOT NULL, status TEXT NOT NULL,
+                    error_type TEXT NOT NULL DEFAULT '', duration_ms REAL NOT NULL DEFAULT 0,
+                    result_count INTEGER NOT NULL DEFAULT 0, sdk_version TEXT NOT NULL DEFAULT '',
+                    query TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
             """)
             self._ensure_columns(connection, "request_logs", {
                 "rewritten_query": "TEXT NOT NULL DEFAULT ''", "retrieved_documents_json": "TEXT NOT NULL DEFAULT '[]'",
@@ -94,6 +100,50 @@ class MetricsStore:
         updates = ", ".join(f"{column}=excluded.{column}" for column in fields if column != "request_id")
         with self._connect() as connection:
             connection.execute(f"INSERT INTO request_logs ({columns}) VALUES ({placeholders}) ON CONFLICT(request_id) DO UPDATE SET {updates}", tuple(fields.values()))
+
+    def record_mcp_tool(self, record: dict[str, Any]) -> None:
+        """记录一次 MCP Tool 调用。不写入代码内容、Token 或任何凭据。"""
+        fields = {
+            "request_id": record["request_id"], "tool_name": record.get("tool_name", ""),
+            "status": record.get("status", "success"), "error_type": record.get("error_type", ""),
+            "duration_ms": round(float(record.get("duration_ms", 0.0)), 2),
+            "result_count": int(record.get("result_count", 0)),
+            "sdk_version": record.get("sdk_version", ""),
+            "query": str(record.get("query", ""))[:200],
+        }
+        with self._connect() as connection:
+            connection.execute(
+                f"INSERT INTO mcp_tool_logs ({', '.join(fields)}) "
+                f"VALUES ({', '.join('?' for _ in fields)})",
+                tuple(fields.values()),
+            )
+
+    def mcp_metrics(self) -> dict[str, Any]:
+        with self._connect() as connection:
+            rows = connection.execute(f"""WITH recent AS (
+                    SELECT * FROM mcp_tool_logs ORDER BY created_at DESC, rowid DESC
+                    LIMIT {self.METRICS_WINDOW_SIZE})
+                SELECT tool_name, COUNT(*) total_requests,
+                COALESCE(SUM(status='success'),0) successful_requests,
+                COALESCE(AVG(duration_ms),0) avg_duration_ms,
+                COALESCE(SUM(result_count),0) result_count,
+                COALESCE(SUM(status='error'),0) failed_requests
+                FROM recent GROUP BY tool_name""").fetchall()
+        return {
+            "window_limit": self.METRICS_WINDOW_SIZE,
+            "tools": {
+                row["tool_name"]: {
+                    "total_requests": row["total_requests"],
+                    "successful_requests": row["successful_requests"],
+                    "failed_requests": row["failed_requests"],
+                    "failure_rate": round(row["failed_requests"] / row["total_requests"], 4)
+                    if row["total_requests"] else 0.0,
+                    "avg_duration_ms": round(row["avg_duration_ms"], 2),
+                    "result_count": row["result_count"],
+                }
+                for row in rows
+            },
+        }
 
     def record_feedback(self, request_id: str, helpful: bool, comment: str = "", reason: str = "") -> bool:
         with self._connect() as connection:
