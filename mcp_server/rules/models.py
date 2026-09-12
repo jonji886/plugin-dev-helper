@@ -11,7 +11,15 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 RuleSeverity = Literal["critical", "high", "medium", "low"]
-RuleScope = Literal["manifest", "ui", "vm", "communication", "api"]
+RuleScope = Literal[
+    "manifest",
+    "ui",
+    "vm",
+    "communication",
+    "api",
+    "dev_server",
+    "network",
+]
 
 
 class Rule(BaseModel):

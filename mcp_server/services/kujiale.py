@@ -14,6 +14,7 @@ from typing import Any, Iterable
 from pydantic import BaseModel, ConfigDict, Field
 
 from mcp_server.rules import KujialeRuleEngine
+from mcp_server.services.dev_server import KujialeDevServerService
 from mcp_server.services.validator import (
     balanced_arguments,
     line_of,
@@ -38,6 +39,11 @@ SCORE_LABELS = {
 
 IDP_PATH = r"\bIDP\s*(?:\.\s*[A-Za-z_$][A-Za-z0-9_$]*)+"
 IDP_USAGE_PATTERN = re.compile(IDP_PATH)
+OPEN_API_HOST_PATTERN = re.compile(r"openapi\.kujiale\.com", re.IGNORECASE)
+EXTERNAL_HTTP_URL_PATTERN = re.compile(
+    r"http://(?!localhost(?::|/)|127\.0\.0\.1(?::|/)|\[::1\](?::|/))",
+    re.IGNORECASE,
+)
 ACTION_LITERAL_PATTERN = re.compile(r"\baction\s*:\s*([\"'])([^\"']+)\1")
 ACTION_COMPARE_PATTERN = re.compile(
     r"(?:\bdata|\b[A-Za-z_$][A-Za-z0-9_$]*\s*\.\s*data)\s*\.\s*action"
@@ -203,9 +209,15 @@ def _line_for_key(text: str, key: str) -> int:
 class PluginProjectValidator:
     """酷家乐工具插件（manifest + HTML UI + JS VM）校验器。"""
 
-    def __init__(self, rule_engine: KujialeRuleEngine, usage_validator: Any | None = None):
+    def __init__(
+        self,
+        rule_engine: KujialeRuleEngine,
+        usage_validator: Any | None = None,
+        dev_server: KujialeDevServerService | None = None,
+    ):
         self.rules = rule_engine
         self.usage_validator = usage_validator
+        self.dev_server = dev_server or KujialeDevServerService(rule_engine)
 
     def validate(self, project_path: str | Path) -> dict[str, Any]:
         root = Path(project_path).expanduser().resolve()
@@ -266,6 +278,18 @@ class PluginProjectValidator:
             )
             return self._result(root, findings)
 
+        dev_server_result = self.dev_server.inspect_project(root)
+        for issue in dev_server_result["issues"]:
+            self._add(
+                findings,
+                issue["rule_id"],
+                issue["file"],
+                issue["line"],
+                issue["message"],
+                confidence=issue.get("confidence"),
+                details=issue.get("details"),
+            )
+
         missing_metadata = [
             key for key in ("name", "version")
             if not isinstance(manifest.get(key), str) or not manifest.get(key, "").strip()
@@ -293,7 +317,7 @@ class PluginProjectValidator:
             self._validate_vm(root, main_path, findings)
 
         communication = self._validate_communication(root, frame_path, main_path, findings)
-        return self._result(root, findings, communication)
+        return self._result(root, findings, communication, dev_server_result)
 
     def _check_manifest_entry(
         self,
@@ -385,6 +409,26 @@ class PluginProjectValidator:
                 line_of(source, match.start()),
                 f"UI 中直接调用了酷家乐插件 API `{usage}`。",
                 details={"symbol": usage},
+            )
+        for match in OPEN_API_HOST_PATTERN.finditer(source):
+            self._add(
+                findings,
+                "KJL-NET-001",
+                relative,
+                line_of(source, match.start()),
+                "插件 UI 直接引用了酷家乐 Open API 地址。",
+                confidence="medium",
+                details={"host": "openapi.kujiale.com"},
+            )
+        for match in EXTERNAL_HTTP_URL_PATTERN.finditer(source):
+            self._add(
+                findings,
+                "KJL-NET-002",
+                relative,
+                line_of(source, match.start()),
+                "插件 UI 引用了非本地 HTTP 地址，外部服务请求必须使用 HTTPS。",
+                confidence="medium",
+                details={"scheme": "http"},
             )
 
     def _validate_vm(self, root: Path, path: Path, findings: list[PluginFinding]) -> None:
@@ -793,6 +837,7 @@ class PluginProjectValidator:
         root: Path,
         findings: list[PluginFinding],
         communication: dict[str, list[str]] | None = None,
+        dev_server: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         summary = {severity: 0 for severity in ("critical", "high", "medium", "low")}
         for finding in findings:
@@ -827,6 +872,12 @@ class PluginProjectValidator:
                 "vm_receives": [],
                 "vm_sends": [],
                 "ui_receives": [],
+            },
+            "dev_server": dev_server or {
+                "package_json": False,
+                "start_script": "",
+                "server_source_files": [],
+                "issues": [],
             },
             "finding_count": len(findings),
             "findings": [finding.model_dump() for finding in findings],

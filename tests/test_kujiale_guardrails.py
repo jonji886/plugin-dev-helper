@@ -6,6 +6,7 @@ import asyncio
 import json
 import tempfile
 import unittest
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from mcp_server.rules import KujialeRuleEngine
@@ -29,6 +30,8 @@ class KujialeGuardrailTests(unittest.TestCase):
             "KJL-UI-001", "KJL-VM-001", "KJL-VM-002", "KJL-VM-003",
             "KJL-VM-004", "KJL-VM-005", "KJL-VM-006",
             "KJL-COMM-001", "KJL-COMM-002", "KJL-COMM-003",
+            "KJL-DEV-001", "KJL-DEV-002", "KJL-DEV-003", "KJL-DEV-004",
+            "KJL-DEV-005", "KJL-DEV-006", "KJL-NET-001", "KJL-NET-002",
         } <= rule_ids)
         vm_rules = engine.query("vm", "VM 调用 API", limit=20)
         self.assertTrue(vm_rules)
@@ -117,8 +120,70 @@ class KujialeGuardrailTests(unittest.TestCase):
         self.assertTrue(any(item["rule_id"] == "KJL-VM-001" for item in constraints["data"]["constraints"]))
         self.assertTrue(scaffold["success"])
         files = scaffold["data"]["files"]
-        self.assertEqual(set(files), {"manifest.json", "ui.html", "vm.js"})
+        self.assertEqual(
+            set(files),
+            {"manifest.json", "ui.html", "vm.js", "package.json", "dev-server.js"},
+        )
         self.assertEqual(json.loads(files["manifest.json"])["frame"], "ui.html")
+        self.assertEqual(json.loads(files["package.json"])["scripts"]["start"], "node dev-server.js")
+        self.assertIn("Access-Control-Allow-Origin", files["dev-server.js"])
+
+    def test_dev_server_probe_checks_manifest_frame_main_and_cors(self):
+        project = self.copy_fixture("valid_plugin")
+
+        class CorsHandler(SimpleHTTPRequestHandler):
+            def end_headers(self):
+                self.send_header("Access-Control-Allow-Origin", "https://miniapp-1258830046.file.myqcloud.com")
+                self.send_header("Access-Control-Allow-Credentials", "true")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                self.send_header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+                super().end_headers()
+
+            def do_OPTIONS(self):
+                self.send_response(204)
+                self.end_headers()
+
+            def log_message(self, *_args):
+                return
+
+        handler = lambda *args, **kwargs: CorsHandler(*args, directory=str(project), **kwargs)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        import threading
+
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            result = self.container.dev_server.probe(
+                project,
+                server_url=f"http://127.0.0.1:{server.server_port}",
+                timeout_seconds=2,
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+        self.assertTrue(result["passed"], result["findings"])
+        self.assertTrue({"manifest", "frame", "main"} <= {
+            check["name"] for check in result["checks"] if check["name"] in {"manifest", "frame", "main"}
+        })
+
+    def test_static_validation_requires_start_script(self):
+        project = self.copy_fixture("valid_plugin")
+        (project / "package.json").write_text(
+            json.dumps({"name": "missing-start", "scripts": {} }), encoding="utf-8"
+        )
+        result = self.container.plugin_validator.validate(project)
+        self.assertIn("KJL-DEV-002", {item["rule_id"] for item in result["findings"]})
+
+    def test_ui_external_http_url_is_rejected_but_local_server_url_is_allowed(self):
+        project = self.copy_fixture("valid_plugin")
+        (project / "ui.html").write_text(
+            (project / "ui.html").read_text(encoding="utf-8")
+            + '\n<script src="http://example.com/plugin.js"></script>\n',
+            encoding="utf-8",
+        )
+        result = self.container.plugin_validator.validate(project)
+        self.assertIn("KJL-NET-002", {item["rule_id"] for item in result["findings"]})
 
     def test_validate_plugin_project_tool_scans_fixture(self):
         async def invoke():

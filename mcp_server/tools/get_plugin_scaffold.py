@@ -12,6 +12,7 @@ def register(mcp, container) -> None:
         name="get_plugin_scaffold",
         description=(
             "返回酷家乐工具插件的最小合法骨架 manifest.json/ui.html/vm.js、"
+            "可通过 npm start 启动的本地 HTTP Server，"
             "UI/VM 职责边界与合法 postMessage Pattern。只提供可扩展模板，不生成完整业务代码。"
         ),
     )

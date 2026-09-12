@@ -11,7 +11,16 @@ import yaml
 from mcp_server.rules.models import Rule
 
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
-SUPPORTED_COMPONENTS = {"all", "manifest", "ui", "vm", "communication", "api"}
+SUPPORTED_COMPONENTS = {
+    "all",
+    "manifest",
+    "ui",
+    "vm",
+    "communication",
+    "api",
+    "dev_server",
+    "network",
+}
 
 
 class KujialeRuleEngine:

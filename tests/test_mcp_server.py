@@ -21,6 +21,7 @@ EXPECTED_TOOLS = {
     "get_plugin_constraints",
     "validate_plugin_project",
     "get_plugin_scaffold",
+    "probe_plugin_dev_server",
 }
 
 

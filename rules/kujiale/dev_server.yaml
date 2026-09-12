@@ -1,0 +1,94 @@
+rules:
+  - id: KJL-DEV-001
+    platform: kujiale
+    category: dev_server
+    scope: dev_server
+    severity: critical
+    title: 工程必须声明本地 HTTP Server
+    description: 本地开发工程必须包含可解析的 package.json，用于提供可重复启动的 HTTP 服务。
+    detection:
+      type: package_json
+    confidence: high
+    suggestion: 在插件根目录新增 package.json，并通过 scripts.start 声明本地 HTTP Server 启动命令。
+    references: [kujiale_local_development]
+    keywords: [HTTP, Server, package.json, 本地服务, 启动]
+    score_category: structure
+
+  - id: KJL-DEV-002
+    platform: kujiale
+    category: dev_server
+    scope: dev_server
+    severity: critical
+    title: 工程必须提供 npm start 启动入口
+    description: 插件工程必须通过 package.json 的 scripts.start 提供可重复执行的本地服务启动入口。
+    detection:
+      type: package_script
+      field: start
+    confidence: high
+    suggestion: 在 package.json 中增加 scripts.start，例如 node dev-server.js。
+    references: [kujiale_local_development]
+    keywords: [npm start, start, package.json, 启动]
+    score_category: structure
+
+  - id: KJL-DEV-003
+    platform: kujiale
+    category: dev_server
+    scope: dev_server
+    severity: high
+    title: 本地 HTTP Server 必须支持跨域响应
+    description: 开发服务应返回 Access-Control-Allow-Origin，并允许酷家乐浏览器环境访问本地资源。
+    detection:
+      type: cors_header
+      header: Access-Control-Allow-Origin
+    confidence: high
+    suggestion: 为本地 HTTP Server 增加 Access-Control-Allow-Origin；启用凭证时使用明确 Origin，不要使用 *。
+    references: [kujiale_local_development]
+    keywords: [CORS, 跨域, Access-Control-Allow-Origin, Origin]
+    score_category: runtime
+
+  - id: KJL-DEV-004
+    platform: kujiale
+    category: dev_server
+    scope: dev_server
+    severity: high
+    title: 本地 HTTP Server 必须处理 OPTIONS 预检
+    description: 浏览器跨域访问本地服务时可能发送 OPTIONS 预检，请求应返回允许的方法和请求头。
+    detection:
+      type: cors_preflight
+      method: OPTIONS
+    confidence: high
+    suggestion: 处理 OPTIONS 请求，并返回 Access-Control-Allow-Methods、Access-Control-Allow-Headers 等响应头。
+    references: [kujiale_local_development]
+    keywords: [CORS, OPTIONS, 预检, Access-Control-Allow-Methods]
+    score_category: runtime
+
+  - id: KJL-DEV-005
+    platform: kujiale
+    category: dev_server
+    scope: dev_server
+    severity: high
+    title: HTTP Server 必须提供 Manifest 和入口资源
+    description: 本地 HTTP Server 必须能读取 manifest.json，并提供 manifest.frame 指向的 HTML 与 manifest.main 指向的 VM JavaScript。
+    detection:
+      type: http_probe
+      resources: [manifest.json, frame, main]
+    confidence: high
+    suggestion: 启动本地服务后检查 /manifest.json、frame 对应 HTML 和 main 对应 JavaScript 均返回 200。
+    references: [kujiale_local_development]
+    keywords: [manifest, frame, main, HTML, VM, HTTP]
+    score_category: structure
+
+  - id: KJL-DEV-006
+    platform: kujiale
+    category: dev_server
+    scope: dev_server
+    severity: high
+    title: 本地 HTTP Server 必须可访问
+    description: 配置的本地服务地址不可访问时，酷家乐无法加载 manifest、frame 和 main 资源。
+    detection:
+      type: http_probe
+    confidence: high
+    suggestion: 先执行 npm start 启动服务，再使用 probe_plugin_dev_server 检查服务地址和端口。
+    references: [kujiale_local_development]
+    keywords: [HTTP, Server, 端口, 可访问, npm start]
+    score_category: structure

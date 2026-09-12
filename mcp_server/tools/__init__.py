@@ -6,6 +6,7 @@ from mcp_server.tools import (
     get_related_symbols,
     get_plugin_constraints,
     get_plugin_scaffold,
+    probe_plugin_dev_server,
     get_type,
     search_docs,
     validate_api_usage,
@@ -22,6 +23,7 @@ TOOL_MODULES = (
     get_plugin_constraints,
     validate_plugin_project,
     get_plugin_scaffold,
+    probe_plugin_dev_server,
 )
 
 __all__ = ["register_tools", "TOOL_MODULES"]

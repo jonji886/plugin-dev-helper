@@ -1,0 +1,32 @@
+rules:
+  - id: KJL-NET-001
+    platform: kujiale
+    category: network
+    scope: network
+    severity: high
+    title: 插件不得直接调用酷家乐 Open API
+    description: 插件前端不得直接请求 openapi.kujiale.com，应通过开发者自己的后端服务转发。
+    detection:
+      type: static_host
+      host: openapi.kujiale.com
+    confidence: medium
+    suggestion: 将 Open API 请求移动到开发者后端，并由插件请求自己的 HTTPS 服务。
+    references: [kujiale_local_development]
+    keywords: [Open API, openapi.kujiale.com, HTTPS, 后端, 网络]
+    score_category: api_usage
+
+  - id: KJL-NET-002
+    platform: kujiale
+    category: network
+    scope: network
+    severity: high
+    title: 外部服务请求必须使用 HTTPS
+    description: 插件访问外部开发者服务时必须使用 HTTPS；localhost 等本地开发地址可以使用 HTTP。
+    detection:
+      type: static_url
+      scheme: https
+    confidence: medium
+    suggestion: 将外部服务地址从 http:// 改为 https://；仅保留 localhost/127.0.0.1 的本地开发 HTTP 地址。
+    references: [kujiale_local_development]
+    keywords: [HTTPS, HTTP, 网络请求, 外部服务, localhost]
+    score_category: api_usage
