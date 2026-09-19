@@ -60,4 +60,4 @@ python scripts/check_benchmark_task.py --clean
 （`contains:` / `not_contains:`）。
 
 > 说明：fixture 是最小工程，仅用于类型层面验收。真实插件运行还需要
-> `manifest.json` + `ui.html`，不在本评测范围内。
+> `manifest.json` + `page.html`，不在本评测范围内。

@@ -7,6 +7,13 @@
 ## [Unreleased]
 
 ### Added
+- `get_plugin_scaffold` 新增 `stack` 参数，支持 `react-ts-webpack` 技术栈（React 17 + TypeScript + Webpack 5 + `@manycore/idp-sdk`），生成与官方 webpack-react-ts 样例一致的 `manifest.json`/`src/main.ts`/`src/view.tsx`/`src/page.html`/`webpack.config.js`/`tsconfig.json`/`package.json`/`README.md`
+- `get_plugin_scaffold` 的 `vanilla` 原生 HTML 骨架替换为与官方 `miniapp-template` 一致的 `page.html`/`page.js`/`vm.js`（本地服务由 `http-server --cors` 提供，移除自建 `dev-server.js`）；开发插件时按用户选择传入 `stack=vanilla`（原生 HTML）或 `react-ts-webpack`（React）
+- 知识库文档（`docs/rag/工具插件代码结构.md`、`data/knowledge/*工具插件代码结构.md`）的 UI 文件命名由 `ui.html` 对齐为 `page.html`，并明确 UI 逻辑脚本 `page.js`（与官方模板一致）；`main` 示例由 `code.js` 对齐为 `vm.js`
+- `dev_server.inspect_project` 识别 `http-server --cors` 等 CORS 能力（含 webpack-dev-server/vite/serve），避免对使用静态服务的 React 栈误报 `KJL-DEV-003`/`KJL-DEV-004`
+- Rule Layer 新增 `KJL-MANIFEST-007`：使用 webpack/vite/rollup 等打包工具时，`main` 必须指向构建产物（如 `build/main.js`），且 `validate_plugin_project`/`probe_plugin_dev_server` 应针对 `build/` 目录而非源码 `src/`；该约束在 `react-ts-webpack` 脚手架中显式透出
+- `demos/webpack-react-ts/` 新增与官方样例一致的真实 golden template（manifest/main/view/webpack 配置齐全），供参考与端到端校验
+- `react-ts-webpack` 脚手架新增 `guidance`：VM 中调用的 IDP API 应先 `get_api` 核实是否存在，否则 `validate_plugin_project` 会对 `main.js` 报 `KJL-API-001`（unknown_api）
 - 新增酷家乐工具插件 Guardrail Rule Layer、`get_plugin_constraints`、`get_plugin_scaffold` 和 `validate_plugin_project`，覆盖 Manifest、UI/VM 运行时、API 使用、Promise 异常与消息 action 匹配，并增加合法/违规 Fixture 与 Buggy Demo
 - 新增 `LLMAdapter`、`OpenAICompatibleAdapter`、`InstrumentedAdapter` 和 `FailoverAdapter`，将 SiliconFlow 与官方 DeepSeek 的客户端、计费、可观测性和瞬时错误故障转移从角色路由中解耦
 - 新增请求级故障转移验收测试，覆盖超时切换、响应路由元数据、token/cost 指标隔离和认证错误失败率；修复 Agent 异常被错误记为成功的问题

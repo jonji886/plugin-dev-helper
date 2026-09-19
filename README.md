@@ -363,7 +363,7 @@ MCP 客户端配置示例：
 | `get_examples` | 从 docs/rag 与知识库返回官方代码示例（只返回真实片段，不临时生成冒充官方） |
 | `validate_api_usage` | 静态校验代码里的 API 用法（不存在 API、错误 namespace/参数名、缺必填、SDK 版本不一致） |
 | `get_plugin_constraints` | 按平台组件和任务返回酷家乐工具插件的结构化约束，Critical/High 优先 |
-| `get_plugin_scaffold` | 返回 `manifest.json`、`ui.html`、`vm.js`、`package.json`、本地 HTTP Server 骨架和 UI/VM 职责边界 |
+| `get_plugin_scaffold` | 按 `stack` 返回最小合法骨架与 UI/VM 职责边界：`vanilla`（原生 HTML，返回 `manifest.json`/`page.html`/`page.js`/`vm.js`/`package.json` + http-server）或 `react-ts-webpack`（React 17 + TS + Webpack 5） |
 | `validate_plugin_project` | 扫描插件 Manifest、UI、VM、消息 action 和本地服务静态配置，返回评分与可定位 Finding |
 | `probe_plugin_dev_server` | 探测已启动或显式启动的本地 HTTP Server，验证 `manifest.json`、`frame`、`main`、CORS 和 OPTIONS |
 

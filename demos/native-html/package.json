@@ -1,0 +1,15 @@
+{
+  "name": "template",
+  "version": "1.0.0",
+  "description": "template",
+  "homepage": "",
+  "license": "ISC",
+  "files": [],
+  "scripts": {
+    "start": "http-server --cors -c-1"
+  },
+  "devDependencies": {
+    "@manycore/idp-sdk": "^1.0.1",
+    "http-server": "^0.12.3"
+  }
+}

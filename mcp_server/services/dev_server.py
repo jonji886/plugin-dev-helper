@@ -60,12 +60,21 @@ class KujialeDevServerService:
 
         source = self._server_source(root)
         source_label = self._source_label(root)
-        if "Access-Control-Allow-Origin" not in source:
+        # 除了在项目源码里显式声明 CORS 头，常见静态服务也通过 --cors 等能力开启
+        # 跨域与 OPTIONS 预检（例如 http-server --cors 由 corser 处理 OPTIONS）。
+        scripts_text = " ".join(
+            str(value) for value in (scripts or {}).values() if isinstance(value, str)
+        )
+        cors_capable = (
+            "Access-Control-Allow-Origin" in source
+            or "--cors" in scripts_text
+            or self._cors_capable_server(scripts_text)
+        )
+        if not cors_capable:
             issues.append(self._issue(
                 "KJL-DEV-003", source_label, 1,
                 "本地 HTTP Server 未发现 Access-Control-Allow-Origin 配置。",
             ))
-        if "OPTIONS" not in source.upper():
             issues.append(self._issue(
                 "KJL-DEV-004", source_label, 1,
                 "本地 HTTP Server 未发现 OPTIONS 预检处理。",
@@ -340,6 +349,13 @@ class KujialeDevServerService:
                     "allow_headers": allow_headers,
                 },
             ))
+
+    @staticmethod
+    def _cors_capable_server(scripts_text: str) -> bool:
+        """识别默认开启 CORS 的已知开发服务（不依赖源码中显式声明响应头）。"""
+        lowered = scripts_text.lower()
+        known = ("webpack-dev-server", "vite", "serve ", "serve --")
+        return any(token in lowered for token in known)
 
     def _server_source(self, root: Path) -> str:
         return "\n".join(

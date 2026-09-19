@@ -27,6 +27,7 @@ class KujialeGuardrailTests(unittest.TestCase):
         rule_ids = {rule.id for rule in engine.rules()}
         self.assertTrue({
             "KJL-MANIFEST-001", "KJL-MANIFEST-002", "KJL-MANIFEST-003",
+            "KJL-MANIFEST-007",
             "KJL-UI-001", "KJL-VM-001", "KJL-VM-002", "KJL-VM-003",
             "KJL-VM-004", "KJL-VM-005", "KJL-VM-006",
             "KJL-COMM-001", "KJL-COMM-002", "KJL-COMM-003",
@@ -122,11 +123,84 @@ class KujialeGuardrailTests(unittest.TestCase):
         files = scaffold["data"]["files"]
         self.assertEqual(
             set(files),
-            {"manifest.json", "ui.html", "vm.js", "package.json", "dev-server.js"},
+            {"manifest.json", "page.html", "page.js", "vm.js", "package.json", "README.md"},
         )
-        self.assertEqual(json.loads(files["manifest.json"])["frame"], "ui.html")
-        self.assertEqual(json.loads(files["package.json"])["scripts"]["start"], "node dev-server.js")
-        self.assertIn("Access-Control-Allow-Origin", files["dev-server.js"])
+        self.assertEqual(json.loads(files["manifest.json"])["frame"], "page.html")
+        self.assertEqual(json.loads(files["manifest.json"])["main"], "vm.js")
+        self.assertEqual(json.loads(files["package.json"])["scripts"]["start"], "http-server --cors -c-1")
+        self.assertIn("window.parent.postMessage", files["page.js"])
+        self.assertIn("defaultFrame.onMessageReceive", files["vm.js"])
+        # 原生 HTML 模板使用 http-server 提供 CORS，不再自带 dev-server.js
+        self.assertNotIn("dev-server.js", files)
+        # 应提示先用 get_api 核实 IDP API 是否存在（避免 KJL-API-001）
+        self.assertIn("guidance", scaffold["data"])
+        joined_guidance = "".join(scaffold["data"]["guidance"])
+        self.assertIn("get_api", joined_guidance)
+        self.assertIn("KJL-API-001", joined_guidance)
+
+    def test_scaffold_react_ts_webpack_stack_generates_expected_files(self):
+        result = self.container.scaffold.build("获取方案信息", stack="react-ts-webpack")
+        self.assertEqual(result["stack"], "react-ts-webpack")
+        files = result["files"]
+        self.assertEqual(
+            set(files),
+            {
+                "manifest.json", "src/main.ts", "src/view.tsx", "src/page.html",
+                "webpack.config.js", "tsconfig.json", "package.json", "README.md",
+            },
+        )
+        manifest = json.loads(files["manifest.json"])
+        self.assertEqual(manifest["frame"], "page.html")
+        self.assertEqual(manifest["main"], "main.js")
+        self.assertIn("window.parent.postMessage", files["src/view.tsx"])
+        self.assertIn("defaultFrame.onMessageReceive", files["src/main.ts"])
+        self.assertIn("ReactDOM.render", files["src/view.tsx"])
+        pkg = json.loads(files["package.json"])
+        self.assertIn("--cors", pkg["scripts"]["start"])
+        self.assertEqual(pkg["dependencies"]["react"], "^17.0.2")
+        self.assertEqual(pkg["devDependencies"]["@manycore/idp-sdk"], "^1.0.1")
+        # 打包类插件的构建产物约束必须显式出现
+        constraint_ids = {item["rule_id"] for item in result["constraints"]}
+        self.assertIn("KJL-MANIFEST-007", constraint_ids)
+        # 应提示先用 get_api 核实 IDP API 是否存在（避免 KJL-API-001）
+        self.assertIn("guidance", result)
+        joined_guidance = "".join(result["guidance"])
+        self.assertIn("get_api", joined_guidance)
+        self.assertIn("KJL-API-001", joined_guidance)
+
+    def test_native_html_golden_template_matches_vanilla_scaffold(self):
+        demo = PROJECT_ROOT / "demos" / "native-html"
+        self.assertTrue(demo.is_dir(), "缺少 demos/native-html golden template")
+        required = {"manifest.json", "page.html", "page.js", "vm.js", "package.json", "README.md"}
+        self.assertEqual(required, set(p.name for p in demo.iterdir() if p.is_file()))
+        manifest = json.loads((demo / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["frame"], "page.html")
+        self.assertEqual(manifest["main"], "vm.js")
+        pkg = json.loads((demo / "package.json").read_text(encoding="utf-8"))
+        self.assertIn("--cors", pkg["scripts"]["start"])
+        self.assertIn("@manycore/idp-sdk", pkg.get("devDependencies", {}))
+        # golden template 应能被 vanilla 脚手架产物一致地复现
+        result = self.container.scaffold.build("获取方案信息", stack="vanilla")
+        for name in required:
+            self.assertIn(name, result["files"])
+
+    def test_scaffold_unsupported_stack_is_rejected(self):
+        result = self.container.scaffold.build(task="x", stack="vue-ts")
+        self.assertFalse(result["success"])
+        self.assertEqual(result["status"], "unsupported_stack")
+
+    def test_inspect_project_recognizes_http_server_cors_flag(self):
+        project = self.copy_fixture("valid_plugin")
+        pkg = json.loads((project / "package.json").read_text(encoding="utf-8"))
+        pkg["scripts"]["start"] = 'concurrently "webpack --watch" "http-server build/ -c-1 --cors"'
+        (project / "package.json").write_text(json.dumps(pkg), encoding="utf-8")
+        dev_server_file = project / "dev-server.js"
+        if dev_server_file.is_file():
+            dev_server_file.unlink()
+        result = self.container.dev_server.inspect_project(project)
+        rule_ids = {issue["rule_id"] for issue in result["issues"]}
+        self.assertNotIn("KJL-DEV-003", rule_ids)
+        self.assertNotIn("KJL-DEV-004", rule_ids)
 
     def test_dev_server_probe_checks_manifest_frame_main_and_cors(self):
         project = self.copy_fixture("valid_plugin")
