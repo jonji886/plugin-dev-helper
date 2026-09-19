@@ -88,7 +88,7 @@ rules:
     detection:
       type: http_probe
     confidence: high
-    suggestion: 先执行 npm start 启动服务，再使用 probe_plugin_dev_server 检查服务地址和端口。
+    suggestion: 先执行 npm start 启动服务，再用浏览器或 HTTP 客户端验证 http://localhost:8080 的 manifest/frame/main 与 CORS/OPTIONS 预检。
     references: [kujiale_local_development]
     keywords: [HTTP, Server, 端口, 可访问, npm start]
     score_category: structure

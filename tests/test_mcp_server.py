@@ -19,9 +19,7 @@ EXPECTED_TOOLS = {
     "get_examples",
     "validate_api_usage",
     "get_plugin_constraints",
-    "validate_plugin_project",
     "get_plugin_scaffold",
-    "probe_plugin_dev_server",
 }
 
 
@@ -71,7 +69,24 @@ class McpServerTests(unittest.TestCase):
         self.assertEqual(payload["service"], "plugin-developer-mcp")
         self.assertEqual(payload["transport"], "streamable-http")
         self.assertTrue(payload["knowledge_available"])
-        self.assertGreaterEqual(payload["tool_count"], 9)
+        self.assertGreaterEqual(payload["tool_count"], 8)
+
+    def test_cors_allow_origin_wildcard_by_default(self):
+        from starlette.testclient import TestClient
+
+        with TestClient(self.app) as client:
+            # 未配置 MCP_ALLOWED_ORIGINS 时，跨域 GET 默认返回 Access-Control-Allow-Origin: *
+            response = client.get("/health", headers={"Origin": "https://example.com"})
+            self.assertEqual(response.headers.get("access-control-allow-origin"), "*")
+            # OPTIONS 预检同样返回通配符
+            preflight = client.options(
+                "/mcp",
+                headers={
+                    "Origin": "https://example.com",
+                    "Access-Control-Request-Method": "POST",
+                },
+            )
+            self.assertEqual(preflight.headers.get("access-control-allow-origin"), "*")
 
     def test_mcp_endpoint_mounted(self):
         paths = {getattr(route, "path", "") for route in self.app.routes}

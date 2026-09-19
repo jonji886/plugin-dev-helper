@@ -28,12 +28,10 @@ npm start
 - 本地开发服务由 `http-server build/ -c-1 --cors` 提供，`--cors` 已开启跨域与 OPTIONS 预检，
   `KJL-DEV-003`/`KJL-DEV-004` 不会误报。
 
-### 校验姿势
-打包类插件的 `main` 是构建产物，因此**不要对源码目录 `src/` 校验**，而应对打包输出目录校验：
+### 本地验证
+打包类插件的 `main` 是构建产物，因此**不要对源码目录 `src/` 校验**，而应对打包输出目录 `build/` 启动本地服务后自行验证：
 ```bash
 npm install
 npm run build            # 生成 build/manifest.json、build/page.html、build/main.js、build/view.js
-# 再对 build/ 目录执行：
-validate_plugin_project --project_path build/
-probe_plugin_dev_server --project_path build/
+# 用浏览器或 HTTP 客户端验证 build/ 下的 manifest/frame/main、CORS 与 OPTIONS 预检
 ```

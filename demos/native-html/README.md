@@ -16,7 +16,7 @@ npm start
 - 本地服务由 `http-server --cors -c-1` 提供，`--cors` 已开启跨域与 OPTIONS 预检，
   `KJL-DEV-003`/`KJL-DEV-004` 不会误报。
 - 原生 HTML 插件无需打包，`manifest/frame/main` 直接在根目录可访问，
-  直接对插件根目录执行 `validate_plugin_project` 与 `probe_plugin_dev_server` 即可。
+  声明可运行前请自行用浏览器或 HTTP 客户端验证本地 HTTP Server 的 manifest/frame/main、CORS 与 OPTIONS 预检。
 
 ## 注意
 - UI（page.html + page.js）运行在 iframe 内，不得调用 IDP 等接口；
@@ -30,11 +30,10 @@ npm start
 - `frame`/`main` 指向 `page.html` 与 `vm.js`，均为根目录静态文件，无需构建。
 - 本地开发服务由 `http-server --cors -c-1` 提供，`--cors` 已开启跨域与 OPTIONS 预检。
 
-### 校验姿势
-原生 HTML 插件不打包，直接对根目录校验：
+### 本地验证
+原生 HTML 插件不打包，直接对根目录启动本地服务后自行验证：
 ```bash
 npm install
 npm start                 # 启动 http-server
-validate_plugin_project --project_path ./
-probe_plugin_dev_server  --project_path ./
+# 用浏览器或 HTTP 客户端验证 manifest/frame/main、CORS 与 OPTIONS 预检
 ```

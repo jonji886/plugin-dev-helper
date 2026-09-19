@@ -327,13 +327,10 @@ type: description
 
 1. 开始实现前必须调用 `get_plugin_constraints`；需要最小合法结构时调用 `get_plugin_scaffold`。
 2. 对不确定的 API、运行环境和通信机制，必须优先查询 MCP，不得凭经验猜测。
-3. 插件主要代码完成后必须调用 `validate_plugin_project`。
-4. 本地开发工程必须提供可重复启动的 HTTP Server，`manifest.json` 中的 `frame` 指向视图层 HTML，`main` 指向 VM JavaScript。
-5. 在声明插件可运行前必须调用 `probe_plugin_dev_server`，验证 `manifest.json`、`frame`、`main`、CORS 和 OPTIONS 预检。
-6. `probe_plugin_dev_server` 默认只探测已启动服务；需要 MCP 代为启动时必须显式传入 `start_server=true`，探测结束后进程会被回收。
-7. 插件前端不得直接调用酷家乐 Open API；外部服务请求必须使用 HTTPS，并通过开发者后端转发。
-8. 存在 Critical Finding 时不得视为开发完成；High Finding 应优先修复，无法修复时明确记录原因。
-9. 酷家乐平台约束以 MCP Rule Layer 为事实来源，不在 AGENTS.md 重复维护完整规则。
+3. 本地开发工程必须提供可重复启动的 HTTP Server，`manifest.json` 中的 `frame` 指向视图层 HTML，`main` 指向 VM JavaScript。
+4. 插件前端不得直接调用酷家乐 Open API；外部服务请求必须使用 HTTPS，并通过开发者后端转发。
+5. 存在 Critical/High 约束违反时不得视为开发完成，无法修复时明确记录原因。
+6. 酷家乐平台约束以 MCP Rule Layer 为事实来源，不在 AGENTS.md 重复维护完整规则。
 
 ---
 

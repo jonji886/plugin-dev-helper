@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+### Removed
+- 删除 `validate_plugin_project` 工具及其底层 `PluginProjectValidator`（`mcp_server/services/kujiale.py`）与 `KujialeDevServerService`（`mcp_server/services/dev_server.py`，仅 `inspect_project` 被前者依赖）；插件工程的静态校验改为由开发者本地自行验证 manifest/frame/main、CORS 与 OPTIONS 预检
+
 ### Added
 - `get_plugin_scaffold` 新增 `stack` 参数，支持 `react-ts-webpack` 技术栈（React 17 + TypeScript + Webpack 5 + `@manycore/idp-sdk`），生成与官方 webpack-react-ts 样例一致的 `manifest.json`/`src/main.ts`/`src/view.tsx`/`src/page.html`/`webpack.config.js`/`tsconfig.json`/`package.json`/`README.md`
 - `get_plugin_scaffold` 的 `vanilla` 原生 HTML 骨架替换为与官方 `miniapp-template` 一致的 `page.html`/`page.js`/`vm.js`（本地服务由 `http-server --cors` 提供，移除自建 `dev-server.js`）；开发插件时按用户选择传入 `stack=vanilla`（原生 HTML）或 `react-ts-webpack`（React）
@@ -47,6 +50,9 @@
 - 评测入口自动加载 `.env`；答案评分增加 Markdown、API 标识和自然语言变体归一化
 - 正式接入 SiliconFlow OpenAI-compatible API，支持 DeepSeek、千问、GLM 三模型按任务路由并保留显式 profile 覆盖
 - 路由任务类型改由原始用户问题确定，避免 LLM 重写内容或固定提示词导致模型 profile 漂移
+
+### Removed
+- 删除 `probe_plugin_dev_server` 工具及其底层的 `KujialeDevServerService.probe`/`_start_process` 等运行探测代码（含 `npm start` 执行面）。该工具依赖同机本地回环地址，远端 MCP 下不可用；运行期 manifest/frame/main、CORS 与 OPTIONS 预检改由开发者本地自行验证
 
 ### Fixed
 - 修复共享 LLM 客户端累计 token/成本被重复写入单请求指标的问题；增加请求级上下文隔离，并限制 RAG 证据上下文预算，降低长文档请求的延迟与成本放大

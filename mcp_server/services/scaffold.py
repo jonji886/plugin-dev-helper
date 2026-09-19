@@ -196,9 +196,9 @@ npm start
 
 ## 校验
 - 本地服务由 `http-server --cors -c-1` 提供，`--cors` 已开启跨域与 OPTIONS 预检；
-  运行 `npm start` 后再用 `probe_plugin_dev_server` 探测。
+  运行 `npm start` 启动本地服务后，运行期的 manifest/frame/main、CORS 与 OPTIONS 预检请自行验证。
 - 原生 HTML 插件无需打包，`manifest/frame/main` 直接在根目录可访问，
-  直接对插件根目录执行 `validate_plugin_project` 即可。
+  声明可运行前请自行用浏览器或 HTTP 客户端验证本地 HTTP Server 的 manifest/frame/main、CORS 与 OPTIONS 预检。
 
 ## 注意
 - UI（page.html + page.js）运行在 iframe 内，不得调用 IDP 等接口；
@@ -223,9 +223,8 @@ npm start
                 "VM 中调用的 IDP API（如本骨架中的 IDP.User.getUserDetailsAsync()、"
                 "IDP.Miniapp.view.defaultFrame.*、IDP.Miniapp.view.setContainerOptions）"
                 "在使用前应先调用 `get_api` 核实其是否存在于 @manycore/idp-sdk；"
-                "若知识库中无该接口，`validate_plugin_project` 会对 vm.js 报 KJL-API-001（unknown_api，error）。",
-                "推荐开发顺序：先 `get_plugin_constraints` 确认约束 → 用 `get_api` 核实所用 IDP 接口 → "
-                "编码 → `validate_plugin_project`（对插件根目录）→ `probe_plugin_dev_server`。",
+                "若知识库中无该接口，`get_api` 未命中时不应直接调用，否则可能违反 `KJL-API-001`（unknown_api）。",
+                "推荐开发顺序：先 `get_plugin_constraints` 确认约束 → 用 `get_api` 核实所用 IDP 接口 → 编码。",
             ],
             "constraints": constraints,
         }
@@ -463,9 +462,9 @@ npm start
 
 ## 校验
 - 本地服务由 `http-server build/ --cors` 提供，`--cors` 已开启跨域与 OPTIONS 预检；
-  运行 `npm start` 后再用 `probe_plugin_dev_server` 探测。
+  运行 `npm start` 启动本地服务后，运行期的 manifest/frame/main、CORS 与 OPTIONS 预检请自行验证。
 - `manifest.main` 指向的是 webpack 编译产物 `build/main.js`，因此请先 `npm run build`
-  或 `npm start`，再对 **build 目录** 执行 `validate_plugin_project`。
+  或 `npm start`，声明可运行前请自行用浏览器或 HTTP 客户端验证 `build/` 下的 manifest/frame/main、CORS 与 OPTIONS 预检。
 
 ## 注意
 目前 webpack-dev-server 暂时不可用，会导致部分代码执行失败，本地开发模式下，更新代码后重启插件即可无需刷新页面
@@ -492,9 +491,8 @@ npm start
             "guidance": [
                 "VM 中调用的 IDP API（如本骨架中的 IDP.Design.getDesignId()、IDP.User.getUserId()）"
                 "在使用前应先调用 `get_api` 核实其是否存在于 @manycore/idp-sdk；"
-                "若知识库中无该接口，`validate_plugin_project` 会对 main.js 报 KJL-API-001（unknown_api，error）。",
-                "推荐开发顺序：先 `get_plugin_constraints` 确认约束 → 用 `get_api` 核实所用 IDP 接口 → "
-                "编码 → `validate_plugin_project`（对 build/ 目录）→ `probe_plugin_dev_server`。",
+                "若知识库中无该接口，`get_api` 未命中时不应直接调用，否则可能违反 `KJL-API-001`（unknown_api）。",
+                "推荐开发顺序：先 `get_plugin_constraints` 确认约束 → 用 `get_api` 核实所用 IDP 接口 → 编码。",
             ],
             "constraints": constraints,
         }

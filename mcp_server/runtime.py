@@ -8,8 +8,6 @@ from mcp_server.config import MCPSettings, get_mcp_settings
 from mcp_server.services.examples import ExampleService
 from mcp_server.services.graph import GraphService
 from mcp_server.services.knowledge import KnowledgeService
-from mcp_server.services.kujiale import PluginProjectValidator
-from mcp_server.services.dev_server import KujialeDevServerService
 from mcp_server.services.retrieval import RetrievalService
 from mcp_server.services.scaffold import KujialeScaffoldService
 from mcp_server.services.validator import UsageValidator
@@ -26,8 +24,6 @@ class Container:
     examples: ExampleService
     validator: UsageValidator
     kujiale_rules: KujialeRuleEngine
-    dev_server: KujialeDevServerService
-    plugin_validator: PluginProjectValidator
     scaffold: KujialeScaffoldService
     telemetry: McpTelemetry
 
@@ -49,7 +45,6 @@ def build_container(settings: MCPSettings | None = None) -> Container:
     knowledge = KnowledgeService(settings.knowledge_path)
     validator = UsageValidator(knowledge)
     kujiale_rules = KujialeRuleEngine(settings.rules_path)
-    dev_server = KujialeDevServerService(kujiale_rules)
     return Container(
         settings=settings,
         knowledge=knowledge,
@@ -67,8 +62,6 @@ def build_container(settings: MCPSettings | None = None) -> Container:
         ),
         validator=validator,
         kujiale_rules=kujiale_rules,
-        dev_server=dev_server,
-        plugin_validator=PluginProjectValidator(kujiale_rules, validator, dev_server),
         scaffold=KujialeScaffoldService(kujiale_rules),
         telemetry=McpTelemetry(settings.database_path, enabled=settings.telemetry_enabled),
     )

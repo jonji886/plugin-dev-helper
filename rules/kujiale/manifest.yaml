@@ -105,9 +105,8 @@ rules:
       当插件使用 webpack / vite / rollup 等打包工具时，manifest.main 不应指向源码
       TS/TSX/JSX，而必须指向打包后的 JavaScript 产物（例如 build/main.js）。
       frame 若同样由打包生成，也应指向 build/ 下的产物。本地开发或发布校验时，
-      应当对打包输出目录（通常是 build/）执行 validate_plugin_project 与
-      probe_plugin_dev_server，而不是源码目录（src/）；源码目录下的 main.js/view.js
-      尚未生成，直接校验会误报 KJL-MANIFEST-003。
+      应当对打包输出目录（通常是 build/）进行验证，而不是源码目录（src/）；
+      源码目录下的 main.js/view.js 尚未生成，直接验证会误报 KJL-MANIFEST-003。
     detection:
       type: bundler_build_artifact
       bundler_configs: [webpack.config.js, vite.config.ts, vite.config.js, rollup.config.js]

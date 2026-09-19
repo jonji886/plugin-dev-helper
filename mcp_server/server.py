@@ -18,6 +18,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from mcp_server.config import MCPSettings, get_mcp_settings
 from mcp_server.runtime import Container, build_container
 from mcp_server.tools import TOOL_MODULES, register_tools
+from starlette.middleware.cors import CORSMiddleware
 
 SERVICE_NAME = "plugin-developer-mcp"
 SERVICE_VERSION = "0.1.0"
@@ -27,7 +28,7 @@ INSTRUCTIONS = (
     "自然语言问题用 search_docs；精确 API 定义用 get_api；构造参数前用 get_type；"
     "展开依赖用 get_related_symbols；找官方示例用 get_examples；"
     "涉及酷家乐工具插件时，开发前用 get_plugin_constraints，必要时用 get_plugin_scaffold，"
-    "改完项目用 validate_plugin_project；声明可运行前用 probe_plugin_dev_server 检查本地 HTTP Server；"
+    "声明可运行前，请自行用浏览器或 HTTP 客户端验证本地 HTTP Server 的 manifest/frame/main、CORS 与 OPTIONS 预检；"
     "改完单段 API 代码可用 validate_api_usage 自检。"
     "查不到时会明确返回 not_found，不要臆造 API。"
 )
@@ -88,6 +89,16 @@ def create_app(settings: MCPSettings | None = None,
     resolved_container = container or build_container(settings)
     mcp = create_mcp_server(settings, resolved_container)
     app = mcp.streamable_http_app()
+
+    # 默认放开跨域：未显式配置 MCP_ALLOWED_ORIGINS 时返回 Access-Control-Allow-Origin: *。
+    # MCP 走 Authorization Bearer，不使用 Cookie 凭证，故 allow_credentials=False 与通配符兼容。
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(settings.allowed_origins) or ["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+        allow_credentials=False,
+    )
 
     async def health(_request: Request) -> JSONResponse:
         return JSONResponse(_health_payload(resolved_container, settings, mcp))
