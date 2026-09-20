@@ -6,6 +6,24 @@
 
 ## [Unreleased]
 
+### Added
+- 新增 MCP 工具级黄金评测集 `benchmark/mcp_golden.json`（58 条用例，覆盖 8 个工具的 happy_path / not_found / boundary / degradation / unsupported / error_safety）与执行器 `scripts/run_mcp_eval.py`：输出 Contract Pass Rate、Status Accuracy、Determinism Rate（同参重复调用比对，剔除 `request_id`/`duration_ms`）、Not-Found Precision、Task Symbol Coverage 与分工具 P50/P95，并按 `benchmark/mcp_gate.json` 判定 GATE
+- 新增 Agent 调用轨迹评分器 `scripts/check_agent_trace.py`，首次真正消费 `tasks.json` 中的 `mcp_tools_expected` 与 `reference_symbols`：输出工具选择 P/R/F1、符号覆盖率、冗余调用率、序列合规（constraints 先于 scaffold、get_api/get_type 先于 validate_api_usage）与拒答正确性；`--self-test` 用明确标注的合成轨迹验证评分器自身
+- 新增 10 个 benchmark 参考解 `benchmark/solutions/T01..T10/vm.ts` 与轨迹落盘规范 `benchmark/traces/README.md`
+- 新增 MCP 多轮调用序列评测 `benchmark/mcp_sequences.json`（6 条链路）与执行器 `scripts/run_mcp_sequences.py`：入参支持 `{{steps.N.path}}` 占位符引用前序步骤返回，输出 Sequence Pass Rate、Step Pass Rate 与 Cross-Step Reference Rate
+- 新增多次调用稳定性验收 `scripts/check_mcp_stability.py`：串行多轮 + 并发、成功率、跨轮次幂等、P50/P95/P99 与漂移、故障注入后的恢复、状态泄漏、request_id 唯一性与遥测落库一致性；默认写临时 SQLite，不污染生产 telemetry
+- `MetricsStore.mcp_metrics()` 新增每工具 `p50/p95/p99_duration_ms` 与 `min/max_duration_ms`（此前只有 `avg_duration_ms`，无法判断延迟漂移），并新增 `tests/test_mcp_metrics.py` 覆盖单样本与多样本场景
+
+### Changed
+- `scripts/check_benchmark_task.py` 支持 `--mode initial|solution|both`：`initial` 校验 fixture 初始态按预期失败（证明 acceptance 非真空），`solution` 写入参考解验收后自动还原；开始尊重此前被忽略的 `acceptance.typecheck` / `acceptance.build` 开关；新增 `--json` 导出结构化结果
+- `benchmark/tasks.json` 新增 `reference_solution` 与 `acceptance.initial_expect_fail` 字段，并在 `meta.field_notes` 中说明各字段由哪个脚本消费
+- CI 在构建知识库后新增两步确定性评测：`scripts/run_mcp_eval.py --repeat 3` 与 `scripts/run_mcp_sequences.py`；`check_mcp_stability.py` 因含时间与漂移阈值、在共享 runner 上易误报，保持手动执行
+
+### Fixed
+- 修复 T08 验收断言 `not_contains:dat` 与 `contains:data` 自相矛盾（`data` 含子串 `dat`，任何正确解都必然失败），改为 `not_contains:dat:`
+- 修复 T09 验收断言 `not_contains:IDP.Miniapp.closeMiniapp` 与 `expected_behavior` 冲突（需求允许用注释说明，但注释中出现该符号名即判失败），改为 `not_contains:IDP.Miniapp.closeMiniapp(`，只拦截真实调用
+- `run_mcp_eval.py` 在评测前预热 embedding 检索，避免首个 `search_docs` 把本地模型加载时间计入延迟指标
+
 ### Removed
 - 删除 `validate_plugin_project` 工具及其底层 `PluginProjectValidator`（`mcp_server/services/kujiale.py`）与 `KujialeDevServerService`（`mcp_server/services/dev_server.py`，仅 `inspect_project` 被前者依赖）；插件工程的静态校验改为由开发者本地自行验证 manifest/frame/main、CORS 与 OPTIONS 预检
 

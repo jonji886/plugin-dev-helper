@@ -1,0 +1,921 @@
+{
+  "repeat": 3,
+  "metrics": {
+    "total_cases": 58,
+    "passed_cases": 58,
+    "contract_pass_rate": 1.0,
+    "status_accuracy": 1.0,
+    "determinism_rate": 1.0,
+    "not_found_precision": 1.0,
+    "task_symbol_coverage": 1.0,
+    "by_category": {
+      "boundary": {
+        "total": 24,
+        "passed": 24,
+        "rate": 1.0
+      },
+      "degradation": {
+        "total": 1,
+        "passed": 1,
+        "rate": 1.0
+      },
+      "error_safety": {
+        "total": 2,
+        "passed": 2,
+        "rate": 1.0
+      },
+      "happy_path": {
+        "total": 21,
+        "passed": 21,
+        "rate": 1.0
+      },
+      "not_found": {
+        "total": 6,
+        "passed": 6,
+        "rate": 1.0
+      },
+      "unsupported": {
+        "total": 4,
+        "passed": 4,
+        "rate": 1.0
+      }
+    },
+    "latency_ms": {
+      "get_api": {
+        "calls": 13,
+        "avg": 4.37,
+        "p50": 0.35,
+        "p95": 16.6
+      },
+      "get_examples": {
+        "calls": 4,
+        "avg": 5.96,
+        "p50": 8.65,
+        "p95": 12.09
+      },
+      "get_plugin_constraints": {
+        "calls": 5,
+        "avg": 14.23,
+        "p50": 0.03,
+        "p95": 71.08
+      },
+      "get_plugin_scaffold": {
+        "calls": 5,
+        "avg": 0.14,
+        "p50": 0.01,
+        "p95": 0.4
+      },
+      "get_related_symbols": {
+        "calls": 3,
+        "avg": 0.16,
+        "p50": 0.05,
+        "p95": 0.41
+      },
+      "get_type": {
+        "calls": 6,
+        "avg": 2.7,
+        "p50": 0.22,
+        "p95": 8.35
+      },
+      "search_docs": {
+        "calls": 7,
+        "avg": 700.06,
+        "p50": 116.48,
+        "p95": 4000.61
+      },
+      "validate_api_usage": {
+        "calls": 6,
+        "avg": 1.93,
+        "p50": 0.15,
+        "p95": 9.02
+      }
+    },
+    "status_cases_count": 49
+  },
+  "gate": {
+    "checks": [
+      {
+        "metric": "contract_pass_rate",
+        "actual": 1.0,
+        "threshold": 1.0,
+        "passed": true
+      },
+      {
+        "metric": "status_accuracy",
+        "actual": 1.0,
+        "threshold": 1.0,
+        "passed": true
+      },
+      {
+        "metric": "determinism_rate",
+        "actual": 1.0,
+        "threshold": 0.99,
+        "passed": true
+      },
+      {
+        "metric": "not_found_precision",
+        "actual": 1.0,
+        "threshold": 1.0,
+        "passed": true
+      },
+      {
+        "metric": "task_symbol_coverage",
+        "actual": 1.0,
+        "threshold": 1.0,
+        "passed": true
+      }
+    ],
+    "passed": true
+  },
+  "cases": [
+    {
+      "id": "MCP-A01",
+      "tool": "get_api",
+      "category": "happy_path",
+      "description": "精确查询已存在的 API，必须返回完整签名与可追溯来源",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 29.9
+    },
+    {
+      "id": "MCP-A02",
+      "tool": "get_api",
+      "category": "happy_path",
+      "description": "带参数的 API 必须返回参数名与关联类型，供 Agent 构造入参",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.2
+    },
+    {
+      "id": "MCP-A03",
+      "tool": "get_api",
+      "category": "happy_path",
+      "description": "成员路径匹配：返回 path 匹配类型并声明行号归属，不得冒充精确匹配",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 2.07
+    },
+    {
+      "id": "MCP-A04",
+      "tool": "get_api",
+      "category": "happy_path",
+      "description": "UI/VM 通信 API 的成员路径匹配",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 1.63
+    },
+    {
+      "id": "MCP-A05",
+      "tool": "get_api",
+      "category": "boundary",
+      "description": "省略命名空间前缀（后缀匹配）应解析到真实符号并如实标注 match_type",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.35
+    },
+    {
+      "id": "MCP-A06",
+      "tool": "get_api",
+      "category": "boundary",
+      "description": "大小写不敏感匹配应解析到真实符号并如实标注 match_type",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.03
+    },
+    {
+      "id": "MCP-A07",
+      "tool": "get_api",
+      "category": "not_found",
+      "description": "不存在的 API 必须明确 not_found 并给出候选，绝不编造签名",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "not_found",
+      "determinism": 1.0,
+      "duration_ms": 16.6
+    },
+    {
+      "id": "MCP-A08",
+      "tool": "get_api",
+      "category": "not_found",
+      "description": "纯自然语言中文本体作为符号名时应明确 not_found（不臆造）",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "not_found",
+      "determinism": 1.0,
+      "duration_ms": 2.57
+    },
+    {
+      "id": "MCP-A09",
+      "tool": "get_api",
+      "category": "boundary",
+      "description": "指定不存在的 SDK 版本时必须给出 version_warning，且仍返回真实版本",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.02
+    },
+    {
+      "id": "MCP-A10",
+      "tool": "get_api",
+      "category": "boundary",
+      "description": "未指定 SDK 版本时不应产生 version_warning",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.03
+    },
+    {
+      "id": "MCP-A11",
+      "tool": "get_api",
+      "category": "boundary",
+      "description": "空符号名应被入参护栏拒绝，工具不被调用",
+      "passed": true,
+      "failures": [],
+      "outcome": "rejected",
+      "status": "",
+      "determinism": null,
+      "duration_ms": null
+    },
+    {
+      "id": "MCP-A12",
+      "tool": "get_api",
+      "category": "boundary",
+      "description": "含反引号与 SQL 片段的注入式符号名应安全降级为 not_found，并把真实符号作为候选返回",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "not_found",
+      "determinism": 1.0,
+      "duration_ms": 3.34
+    },
+    {
+      "id": "MCP-B01",
+      "tool": "get_type",
+      "category": "happy_path",
+      "description": "接口类型必须返回全部字段名，供构造入参",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.22
+    },
+    {
+      "id": "MCP-B02",
+      "tool": "get_type",
+      "category": "happy_path",
+      "description": "必填标记必须正确：MiniappUploadDataOption 字段全部必填",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.04
+    },
+    {
+      "id": "MCP-B03",
+      "tool": "get_type",
+      "category": "happy_path",
+      "description": "窗口选项类型必须返回 windowMode/minimizable 等合法字段且标记为可选",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.54
+    },
+    {
+      "id": "MCP-B04",
+      "tool": "get_type",
+      "category": "happy_path",
+      "description": "枚举类型必须返回枚举成员",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 7.04
+    },
+    {
+      "id": "MCP-B05",
+      "tool": "get_type",
+      "category": "not_found",
+      "description": "不存在的类型必须明确 not_found，不臆造字段",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "not_found",
+      "determinism": 1.0,
+      "duration_ms": 8.35
+    },
+    {
+      "id": "MCP-B06",
+      "tool": "get_type",
+      "category": "boundary",
+      "description": "大小写不敏感的类型名匹配",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.03
+    },
+    {
+      "id": "MCP-B07",
+      "tool": "get_type",
+      "category": "boundary",
+      "description": "空类型名应被入参护栏拒绝",
+      "passed": true,
+      "failures": [],
+      "outcome": "rejected",
+      "status": "",
+      "determinism": null,
+      "duration_ms": null
+    },
+    {
+      "id": "MCP-C01",
+      "tool": "get_related_symbols",
+      "category": "happy_path",
+      "description": "依赖展开必须覆盖 API 的入参类型与返回类型",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.05
+    },
+    {
+      "id": "MCP-C02",
+      "tool": "get_related_symbols",
+      "category": "boundary",
+      "description": "depth 上限（3）应被接受",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.03
+    },
+    {
+      "id": "MCP-C03",
+      "tool": "get_related_symbols",
+      "category": "not_found",
+      "description": "不存在的符号应返回 not_found 与空关联列表",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "not_found",
+      "determinism": 1.0,
+      "duration_ms": 0.41
+    },
+    {
+      "id": "MCP-C04",
+      "tool": "get_related_symbols",
+      "category": "boundary",
+      "description": "depth=0 低于下界，应被入参护栏拒绝",
+      "passed": true,
+      "failures": [],
+      "outcome": "rejected",
+      "status": "",
+      "determinism": null,
+      "duration_ms": null
+    },
+    {
+      "id": "MCP-C05",
+      "tool": "get_related_symbols",
+      "category": "boundary",
+      "description": "depth=99 高于上界，应被入参护栏拒绝",
+      "passed": true,
+      "failures": [],
+      "outcome": "rejected",
+      "status": "",
+      "determinism": null,
+      "duration_ms": null
+    },
+    {
+      "id": "MCP-D01",
+      "tool": "search_docs",
+      "category": "happy_path",
+      "description": "自然语言检索走 hybrid 模式，结果必须可追溯（source_file + 行号）",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 4000.61
+    },
+    {
+      "id": "MCP-D02",
+      "tool": "search_docs",
+      "category": "boundary",
+      "description": "top_k=1 应只返回 1 条",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 67.25
+    },
+    {
+      "id": "MCP-D03",
+      "tool": "search_docs",
+      "category": "boundary",
+      "description": "top_k=20 应返回足量结果",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 185.79
+    },
+    {
+      "id": "MCP-D04",
+      "tool": "search_docs",
+      "category": "boundary",
+      "description": "按不存在的 SDK 版本过滤后，结果只允许是无版本的文档或该版本的符号",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 116.48
+    },
+    {
+      "id": "MCP-D05",
+      "tool": "search_docs",
+      "category": "happy_path",
+      "description": "按真实 SDK 版本过滤应保留文档与该版本符号",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 82.64
+    },
+    {
+      "id": "MCP-D06",
+      "tool": "search_docs",
+      "category": "boundary",
+      "description": "500 字超长 query（上界）应正常检索而不报错",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 439.06
+    },
+    {
+      "id": "MCP-D07",
+      "tool": "search_docs",
+      "category": "boundary",
+      "description": "空 query 应被入参护栏拒绝",
+      "passed": true,
+      "failures": [],
+      "outcome": "rejected",
+      "status": "",
+      "determinism": null,
+      "duration_ms": null
+    },
+    {
+      "id": "MCP-D08",
+      "tool": "search_docs",
+      "category": "boundary",
+      "description": "top_k=0 低于下界，应被入参护栏拒绝",
+      "passed": true,
+      "failures": [],
+      "outcome": "rejected",
+      "status": "",
+      "determinism": null,
+      "duration_ms": null
+    },
+    {
+      "id": "MCP-D09",
+      "tool": "search_docs",
+      "category": "boundary",
+      "description": "top_k=21 高于上界，应被入参护栏拒绝",
+      "passed": true,
+      "failures": [],
+      "outcome": "rejected",
+      "status": "",
+      "determinism": null,
+      "duration_ms": null
+    },
+    {
+      "id": "MCP-D10",
+      "tool": "search_docs",
+      "category": "degradation",
+      "description": "向量库不可用时必须降级为 keyword_fallback 并如实标注 mode，不得伪装成 hybrid",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 8.61
+    },
+    {
+      "id": "MCP-E01",
+      "tool": "get_examples",
+      "category": "happy_path",
+      "description": "有官方示例的主题必须返回真实片段",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 8.65
+    },
+    {
+      "id": "MCP-E02",
+      "tool": "get_examples",
+      "category": "happy_path",
+      "description": "UI/VM 通信 API 应能检索到官方示例",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 2.44
+    },
+    {
+      "id": "MCP-E03",
+      "tool": "get_examples",
+      "category": "not_found",
+      "description": "无官方示例时必须返回空列表并提示勿把模型生成代码当官方示例",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "not_found",
+      "determinism": 1.0,
+      "duration_ms": 0.65
+    },
+    {
+      "id": "MCP-E04",
+      "tool": "get_examples",
+      "category": "not_found",
+      "description": "另一个无官方示例的符号同样必须诚实返回空",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "not_found",
+      "determinism": 1.0,
+      "duration_ms": 12.09
+    },
+    {
+      "id": "MCP-E05",
+      "tool": "get_examples",
+      "category": "boundary",
+      "description": "空符号名应被入参护栏拒绝",
+      "passed": true,
+      "failures": [],
+      "outcome": "rejected",
+      "status": "",
+      "determinism": null,
+      "duration_ms": null
+    },
+    {
+      "id": "MCP-F01",
+      "tool": "validate_api_usage",
+      "category": "happy_path",
+      "description": "合法用法应判定通过且零问题",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.15
+    },
+    {
+      "id": "MCP-F02",
+      "tool": "validate_api_usage",
+      "category": "happy_path",
+      "description": "不存在的 API 必须报 unknown_api 且判定为 invalid",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "invalid",
+      "determinism": 1.0,
+      "duration_ms": 9.02
+    },
+    {
+      "id": "MCP-F03",
+      "tool": "validate_api_usage",
+      "category": "happy_path",
+      "description": "错误参数名必须报 unknown_parameter",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "invalid",
+      "determinism": 1.0,
+      "duration_ms": 0.15
+    },
+    {
+      "id": "MCP-F04",
+      "tool": "validate_api_usage",
+      "category": "boundary",
+      "description": "带正确 SDK 版本的合法用法应通过",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.08
+    },
+    {
+      "id": "MCP-F05",
+      "tool": "validate_api_usage",
+      "category": "boundary",
+      "description": "SDK 版本不一致只告警（warning），不应把合法用法判成 invalid",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.07
+    },
+    {
+      "id": "MCP-F06",
+      "tool": "validate_api_usage",
+      "category": "boundary",
+      "description": "超长代码应被截断并如实标注 truncated",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 2.09
+    },
+    {
+      "id": "MCP-F07",
+      "tool": "validate_api_usage",
+      "category": "boundary",
+      "description": "空代码应被入参护栏拒绝",
+      "passed": true,
+      "failures": [],
+      "outcome": "rejected",
+      "status": "",
+      "determinism": null,
+      "duration_ms": null
+    },
+    {
+      "id": "MCP-G01",
+      "tool": "get_plugin_constraints",
+      "category": "happy_path",
+      "description": "默认查询应返回 kujiale 全量约束",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 71.08
+    },
+    {
+      "id": "MCP-G02",
+      "tool": "get_plugin_constraints",
+      "category": "happy_path",
+      "description": "按 vm 组件过滤应返回该组件的约束",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.03
+    },
+    {
+      "id": "MCP-G03",
+      "tool": "get_plugin_constraints",
+      "category": "happy_path",
+      "description": "communication 组件应返回 UI/VM 通信约束",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.03
+    },
+    {
+      "id": "MCP-G04",
+      "tool": "get_plugin_constraints",
+      "category": "unsupported",
+      "description": "不支持的平台必须返回 not_supported，不得返回空约束冒充成功",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "not_supported",
+      "determinism": 1.0,
+      "duration_ms": 0.0
+    },
+    {
+      "id": "MCP-G05",
+      "tool": "get_plugin_constraints",
+      "category": "boundary",
+      "description": "非法 component 当前返回结构化 error 并列出可选值（与 G04 的 not_supported 语义不一致，待改进）",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "error",
+      "determinism": 1.0,
+      "duration_ms": 0.02
+    },
+    {
+      "id": "MCP-H01",
+      "tool": "get_plugin_scaffold",
+      "category": "happy_path",
+      "description": "vanilla 技术栈应返回最小骨架文件",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.28
+    },
+    {
+      "id": "MCP-H02",
+      "tool": "get_plugin_scaffold",
+      "category": "happy_path",
+      "description": "react-ts-webpack 技术栈应返回对应骨架",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "ok",
+      "determinism": 1.0,
+      "duration_ms": 0.4
+    },
+    {
+      "id": "MCP-H03",
+      "tool": "get_plugin_scaffold",
+      "category": "unsupported",
+      "description": "不支持的技术栈必须明确拒绝并列出可选值",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "unsupported_stack",
+      "determinism": 1.0,
+      "duration_ms": 0.01
+    },
+    {
+      "id": "MCP-H04",
+      "tool": "get_plugin_scaffold",
+      "category": "unsupported",
+      "description": "不支持的平台必须拒绝",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "not_supported",
+      "determinism": 1.0,
+      "duration_ms": 0.0
+    },
+    {
+      "id": "MCP-H05",
+      "tool": "get_plugin_scaffold",
+      "category": "unsupported",
+      "description": "不支持的插件类型必须拒绝",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "not_supported",
+      "determinism": 1.0,
+      "duration_ms": 0.0
+    },
+    {
+      "id": "MCP-I01",
+      "tool": "get_api",
+      "category": "error_safety",
+      "description": "工具内部异常必须收敛为结构化 error，不得泄露 traceback，不得伪装成 not_found",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "error",
+      "determinism": null,
+      "duration_ms": 0.02
+    },
+    {
+      "id": "MCP-I02",
+      "tool": "get_api",
+      "category": "error_safety",
+      "description": "单个工具异常后，同一 Server 上的其他工具必须仍然可用（故障隔离）",
+      "passed": true,
+      "failures": [],
+      "outcome": "responded",
+      "status": "error",
+      "determinism": null,
+      "duration_ms": 0.01,
+      "then_status": "ok"
+    }
+  ],
+  "symbol_coverage": [
+    {
+      "task_id": "T01",
+      "symbol": "IDP.Miniapp.exit",
+      "resolved": true,
+      "resolved_by": "get_api"
+    },
+    {
+      "task_id": "T02",
+      "symbol": "IDP.Miniapp.uploadDataAsync",
+      "resolved": true,
+      "resolved_by": "get_api"
+    },
+    {
+      "task_id": "T02",
+      "symbol": "MiniappUploadDataOption",
+      "resolved": true,
+      "resolved_by": "get_api"
+    },
+    {
+      "task_id": "T03",
+      "symbol": "IDP.Custom.Common.getCurrentToolType",
+      "resolved": true,
+      "resolved_by": "get_api"
+    },
+    {
+      "task_id": "T03",
+      "symbol": "IDP.Custom.Common.ToolType.Wardrobe",
+      "resolved": true,
+      "resolved_by": "get_api"
+    },
+    {
+      "task_id": "T04",
+      "symbol": "IDP.Miniapp.view.defaultFrame.postMessage",
+      "resolved": true,
+      "resolved_by": "get_api"
+    },
+    {
+      "task_id": "T05",
+      "symbol": "IDP.Miniapp.view.defaultFrame.onMessageReceive",
+      "resolved": true,
+      "resolved_by": "get_api"
+    },
+    {
+      "task_id": "T06",
+      "symbol": "IDP.Miniapp.view.setContainerOptions",
+      "resolved": true,
+      "resolved_by": "get_api"
+    },
+    {
+      "task_id": "T06",
+      "symbol": "MainMountPointOptions",
+      "resolved": true,
+      "resolved_by": "get_api"
+    },
+    {
+      "task_id": "T07",
+      "symbol": "IDP.Miniapp.exit",
+      "resolved": true,
+      "resolved_by": "get_api"
+    },
+    {
+      "task_id": "T08",
+      "symbol": "IDP.Miniapp.uploadDataAsync",
+      "resolved": true,
+      "resolved_by": "get_api"
+    },
+    {
+      "task_id": "T08",
+      "symbol": "MiniappUploadDataOption",
+      "resolved": true,
+      "resolved_by": "get_api"
+    },
+    {
+      "task_id": "T09",
+      "symbol": "IDP.Miniapp.exit",
+      "resolved": true,
+      "resolved_by": "get_api"
+    },
+    {
+      "task_id": "T10",
+      "symbol": "IDP.Miniapp.view.setContainerOptions",
+      "resolved": true,
+      "resolved_by": "get_api"
+    },
+    {
+      "task_id": "T10",
+      "symbol": "MainMountPointOptions",
+      "resolved": true,
+      "resolved_by": "get_api"
+    }
+  ]
+}

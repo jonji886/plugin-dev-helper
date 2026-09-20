@@ -1,0 +1,277 @@
+{
+  "rounds": 30,
+  "concurrency": 5,
+  "inject_error": true,
+  "gate_config": {
+    "min_success_rate": 0.99,
+    "min_determinism_rate": 0.99,
+    "max_drift_ms": 100.0
+  },
+  "metrics": {
+    "rounds": 30,
+    "calls_per_round": 8,
+    "total_calls": 232,
+    "injected_calls_excluded": 8,
+    "success_rate": 1.0,
+    "status_mismatches": [],
+    "determinism_rate": 1.0,
+    "non_deterministic_tools": [],
+    "latency_ms": {
+      "get_api": {
+        "calls": 29,
+        "avg": 0.76,
+        "p50": 0.03,
+        "p95": 0.05,
+        "p99": 21.15
+      },
+      "get_examples": {
+        "calls": 29,
+        "avg": 0.52,
+        "p50": 0.45,
+        "p95": 0.97,
+        "p99": 1.17
+      },
+      "get_plugin_constraints": {
+        "calls": 29,
+        "avg": 3.4,
+        "p50": 0.04,
+        "p95": 0.09,
+        "p99": 97.21
+      },
+      "get_plugin_scaffold": {
+        "calls": 29,
+        "avg": 0.14,
+        "p50": 0.1,
+        "p95": 0.17,
+        "p99": 1.05
+      },
+      "get_related_symbols": {
+        "calls": 29,
+        "avg": 0.04,
+        "p50": 0.03,
+        "p95": 0.09,
+        "p99": 0.34
+      },
+      "get_type": {
+        "calls": 29,
+        "avg": 0.03,
+        "p50": 0.02,
+        "p95": 0.05,
+        "p99": 0.2
+      },
+      "search_docs": {
+        "calls": 29,
+        "avg": 219.51,
+        "p50": 81.97,
+        "p95": 153.83,
+        "p99": 3946.27
+      },
+      "validate_api_usage": {
+        "calls": 29,
+        "avg": 0.06,
+        "p50": 0.04,
+        "p95": 0.16,
+        "p99": 0.5
+      }
+    },
+    "drift": {
+      "get_api": {
+        "early_p50": 0.03,
+        "late_p50": 0.03,
+        "p50_delta_ms": 0.0,
+        "early_p95": 0.03,
+        "late_p95": 0.04,
+        "p95_delta_ms": 0.01,
+        "drift": 0.0
+      },
+      "get_type": {
+        "early_p50": 0.02,
+        "late_p50": 0.02,
+        "p50_delta_ms": 0.0,
+        "early_p95": 0.03,
+        "late_p95": 0.03,
+        "p95_delta_ms": 0.0,
+        "drift": 0.0
+      },
+      "get_related_symbols": {
+        "early_p50": 0.03,
+        "late_p50": 0.03,
+        "p50_delta_ms": 0.0,
+        "early_p95": 0.03,
+        "late_p95": 0.04,
+        "p95_delta_ms": 0.01,
+        "drift": 0.0
+      },
+      "get_examples": {
+        "early_p50": 0.45,
+        "late_p50": 0.45,
+        "p50_delta_ms": 0.0,
+        "early_p95": 0.63,
+        "late_p95": 0.56,
+        "p95_delta_ms": -0.07,
+        "drift": 0.0
+      },
+      "validate_api_usage": {
+        "early_p50": 0.04,
+        "late_p50": 0.04,
+        "p50_delta_ms": 0.0,
+        "early_p95": 0.05,
+        "late_p95": 0.08,
+        "p95_delta_ms": 0.03,
+        "drift": 0.0
+      },
+      "get_plugin_constraints": {
+        "early_p50": 0.04,
+        "late_p50": 0.04,
+        "p50_delta_ms": 0.0,
+        "early_p95": 0.08,
+        "late_p95": 0.06,
+        "p95_delta_ms": -0.02,
+        "drift": 0.0
+      },
+      "get_plugin_scaffold": {
+        "early_p50": 0.1,
+        "late_p50": 0.1,
+        "p50_delta_ms": 0.0,
+        "early_p95": 0.13,
+        "late_p95": 0.15,
+        "p95_delta_ms": 0.02,
+        "drift": 0.0
+      },
+      "search_docs": {
+        "early_p50": 78.28,
+        "late_p50": 81.85,
+        "p50_delta_ms": 3.57,
+        "early_p95": 148.63,
+        "late_p95": 87.53,
+        "p95_delta_ms": -61.1,
+        "drift": 0.0456
+      }
+    },
+    "warmup_rounds_excluded": 1,
+    "max_drift_ms": 3.57
+  },
+  "recovery": {
+    "injected_at_round": 15,
+    "status_during_error": "error",
+    "error_type_during_error": "RuntimeError",
+    "expected_status": "error",
+    "error_surfaced": true,
+    "rounds_after_error": 14,
+    "calls_after_error": 112,
+    "recovered": true
+  },
+  "state": {
+    "cache_before": 0,
+    "cache_after": 3,
+    "healthy_after": true,
+    "sdk_versions": [
+      "1.83.0"
+    ],
+    "rule_count": 26
+  },
+  "telemetry": {
+    "calls_issued": 240,
+    "request_ids_issued": 240,
+    "request_ids_unique": 240,
+    "request_id_collisions": 0,
+    "logged_total_requests": 280,
+    "logged_failed_requests": 4,
+    "percentiles_from_store": {
+      "get_api": {
+        "p50": 0.03,
+        "p95": 0.04,
+        "p99": 13.98
+      },
+      "get_examples": {
+        "p50": 0.45,
+        "p95": 0.98,
+        "p99": 1.12
+      },
+      "get_plugin_constraints": {
+        "p50": 0.04,
+        "p95": 0.08,
+        "p99": 64.19
+      },
+      "get_plugin_scaffold": {
+        "p50": 0.1,
+        "p95": 0.16,
+        "p99": 0.75
+      },
+      "get_related_symbols": {
+        "p50": 0.03,
+        "p95": 0.06,
+        "p99": 0.26
+      },
+      "get_type": {
+        "p50": 0.02,
+        "p95": 0.04,
+        "p99": 0.15
+      },
+      "search_docs": {
+        "p50": 83.25,
+        "p95": 150.19,
+        "p99": 2656.84
+      },
+      "validate_api_usage": {
+        "p50": 0.04,
+        "p95": 0.11,
+        "p99": 0.38
+      }
+    }
+  },
+  "concurrency_result": {
+    "workers": 5,
+    "expected_calls": 40,
+    "anomalies": [],
+    "passed": true
+  },
+  "gate": {
+    "checks": [
+      {
+        "metric": "success_rate",
+        "actual": 1.0,
+        "threshold": 0.99,
+        "passed": true
+      },
+      {
+        "metric": "determinism_rate",
+        "actual": 1.0,
+        "threshold": 0.99,
+        "passed": true
+      },
+      {
+        "metric": "max_p50_drift",
+        "actual": 1.0,
+        "threshold": 1.0,
+        "passed": true,
+        "detail": "|Δp50|=3.57ms <= 100.0ms"
+      },
+      {
+        "metric": "request_id_uniqueness",
+        "actual": 1.0,
+        "threshold": 1.0,
+        "passed": true
+      },
+      {
+        "metric": "state_healthy_after",
+        "actual": 1.0,
+        "threshold": 1.0,
+        "passed": true
+      },
+      {
+        "metric": "recovery_after_error",
+        "actual": 1.0,
+        "threshold": 1.0,
+        "passed": true
+      },
+      {
+        "metric": "concurrency_clean",
+        "actual": 1.0,
+        "threshold": 1.0,
+        "passed": true
+      }
+    ],
+    "passed": true
+  }
+}

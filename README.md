@@ -285,7 +285,10 @@ VISION=Qwen/Qwen3-VL-32B-Instruct
 - 当前模型路由仍是应用层规则路由；Prompt A/B 评测阶段使用确定性分类以隔离 Router 网络波动。
 - Feedback 晋升回归集前需要人工 Review，系统不会自动把负反馈当成标准答案。
 - `estimated_cost` 是基于公开价格配置的估算值，不等同于账户最终账单；不同货币的历史模型配置不可直接横向相加。
-- 当前 Golden Dataset 为 24 条，足以做回归门禁，但不能代表完整生产分布。
+- 当前 Chat 链路 Golden Dataset 为 24 条，足以做回归门禁，但不能代表完整生产分布。
+- MCP 工具级评测（`benchmark/mcp_golden.json`，58 条）与多轮序列评测（`mcp_sequences.json`，6 条）覆盖工具契约、边界与跨步骤引用，但不评估「Agent 是否会正确选用工具」；后者必须由真实 Agent 轨迹驱动 `check_agent_trace.py`，目前尚无实测数据。
+- `check_mcp_stability.py` 的门禁含时间与漂移阈值，未纳入 CI（共享 runner 调度抖动会误报），仅在发布前或配置变更后手动执行。
+- `benchmark/` 的「无 MCP vs 有 MCP」对比至今未执行，`results/comparison.md` 中该两列仍为 N/A；参考解仅用于证明任务可解，不能冒充 Agent 结果。
 - SiliconFlow 中转的长响应可能出现偶发长等待；应用已限制 Router 预算并限制答案上下文，但 Main/Reason/Vision 的最终可用性仍取决于上游超时和重试配置。
 - Langfuse 是可选依赖；未开启或远端不可用时只能查看本地 SQLite 指标，不能查看远程 Trace。
 
@@ -399,7 +402,19 @@ MCP 客户端配置示例：
 > MCP 服务默认放开跨域：未设置 `MCP_ALLOWED_ORIGINS` 时，所有响应带 `Access-Control-Allow-Origin: *`，
 > 浏览器可直接跨域调用 `/mcp` 与 `/health`；需收紧时设 `MCP_ALLOWED_ORIGINS`（逗号分隔的来源列表）覆盖默认通配符。
 
-离线效果评测见 [`benchmark/`](benchmark/)：10 个任务覆盖 API 查找、类型构造、UI/VM 通信、错误修复、拒绝编造、信息不足先查询，用 `scripts/check_benchmark_task.py` 自动验收。
+离线效果评测分三层，见 [`benchmark/`](benchmark/)：
+
+| 层 | 入口 | 需要 Agent / LLM | 状态 |
+|---|---|---|---|
+| MCP 工具级（58 条黄金用例：契约 / 边界 / not_found / 降级 / 异常隔离 / 幂等性） | `python scripts/run_mcp_eval.py` | 否，已进 CI | 已执行，GATE PASS |
+| MCP 多轮序列（6 条链路，跨步骤引用 / 指代传递） | `python scripts/run_mcp_sequences.py` | 否，已进 CI | 已执行，6/6 |
+| 多次调用稳定性（30 轮 × 8 工具 + 5 路并发 + 故障恢复 + 状态泄漏） | `python scripts/check_mcp_stability.py` | 否，建议发布前跑 | 已执行，GATE PASS |
+| 任务可解性验收（初始态应失败 + 参考解应通过） | `python scripts/check_benchmark_task.py --all --mode both` | 否 | 已执行，10/10 |
+| Agent 调用行为与端到端增益（无 MCP vs 有 MCP） | `python scripts/check_agent_trace.py --dir benchmark/traces` | 是 | 待执行 |
+
+10 个任务覆盖 API 查找、类型构造、UI/VM 通信、错误修复、拒绝编造、信息不足先查询。
+`tasks.json` 的 `mcp_tools_expected` / `reference_symbols` 由 `check_agent_trace.py` 计算
+工具选择 F1、符号覆盖、冗余调用率与序列合规。结果见 [`benchmark/results/comparison.md`](benchmark/results/comparison.md)。
 
 ## 15. 测试与验证
 
@@ -435,7 +450,7 @@ prompts/             Git-based Prompt 版本
 eval/                Golden Dataset、评分、A/B 报告与 Regression Gate
 mcp_server/          MCP Server（工具、服务、Rule、配置、遥测，只读查询）
 rules/               酷家乐结构化 Guardrail 规则（唯一平台约束事实源）
-benchmark/           MCP 效果评测任务集与验收脚本
+benchmark/           MCP 工具级黄金评测集、任务集、参考解、Agent 轨迹与结果
 scripts/             知识构建、失败案例导出、评测入口
 frontend/            Next.js Chat UI 与 Feedback UI
 deploy/              Docker 镜像与 Compose

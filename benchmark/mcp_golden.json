@@ -1,0 +1,666 @@
+{
+  "meta": {
+    "version": "0.1.0",
+    "description": "Plugin Developer MCP 工具级黄金评测集。直接针对 8 个 MCP 工具的入参/返回做确定性断言，不调用 LLM、不需要 Agent，可进 CI。",
+    "runner": "python scripts/run_mcp_eval.py",
+    "assertion_schema": {
+      "outcome": "'responded'（工具正常返回）| 'rejected'（入参未通过 pydantic 校验，工具未被调用）",
+      "status": "断言 payload['status'] 精确相等",
+      "equals": "{dotted_path: 期望值}，路径支持 list 下标与 '[*]' 展开",
+      "truthy": "[dotted_path] 该字段必须存在且非空",
+      "falsy": "[dotted_path] 该字段必须缺失或为空（防编造）",
+      "min_len": "{dotted_path: n} 集合/字符串最小长度",
+      "max_len": "{dotted_path: n} 集合/字符串最大长度",
+      "contains_any": "{dotted_path: [...]} 实际值中至少命中一个",
+      "contains_all": "{dotted_path: [...]} 给定的值全部出现",
+      "all_equal": "{dotted_path: value} 展开后每一项都等于该值",
+      "all_in": "{dotted_path: [...]} 展开后每一项都在给定集合内",
+      "contains": "{dotted_path: substring}",
+      "not_contains": "{dotted_path: substring}",
+      "source_lines_valid": "true 表示 payload.source_lines.start > 0",
+      "citation_complete": "true 表示 results 每一项都带 source_file 与 source_lines.start>0；非 document 类型还必须有 sdk_version"
+    },
+    "force_schema": {
+      "retrieval_available": "false 时模拟向量库不可用，验证 keyword_fallback 降级"
+    },
+    "notes": [
+      "rejected 用例验证的是 MCP 层的入参护栏：入参非法时工具不应被调用，也不应返回伪装成 not_found 的业务结果。",
+      "MCP-G05（非法 component）当前返回 status=error 而非 not_supported，与 MCP-H03/H04 的语义不一致，已按现状断言并在报告中标记为一致性待改进项。"
+    ]
+  },
+  "cases": [
+    {
+      "id": "MCP-A01",
+      "tool": "get_api",
+      "category": "happy_path",
+      "description": "精确查询已存在的 API，必须返回完整签名与可追溯来源",
+      "arguments": {"symbol": "IDP.Miniapp.exit"},
+      "expect": {
+        "status": "ok",
+        "equals": {"found": true, "symbol": "IDP.Miniapp.exit", "match_type": "exact", "sdk_version": "1.83.0", "source_file": "index.d.ts"},
+        "truthy": ["signature", "source_file", "location", "name"],
+        "falsy": ["candidate_symbols", "version_warning"],
+        "source_lines_valid": true
+      }
+    },
+    {
+      "id": "MCP-A02",
+      "tool": "get_api",
+      "category": "happy_path",
+      "description": "带参数的 API 必须返回参数名与关联类型，供 Agent 构造入参",
+      "arguments": {"symbol": "IDP.Miniapp.uploadDataAsync"},
+      "expect": {
+        "status": "ok",
+        "equals": {"found": true, "parameters.0.name": "option"},
+        "contains_any": {"related_types": ["MiniappUploadDataOption"]},
+        "truthy": ["signature", "parameters"],
+        "source_lines_valid": true
+      }
+    },
+    {
+      "id": "MCP-A03",
+      "tool": "get_api",
+      "category": "happy_path",
+      "description": "成员路径匹配：返回 path 匹配类型并声明行号归属，不得冒充精确匹配",
+      "arguments": {"symbol": "IDP.Miniapp.view.setContainerOptions"},
+      "expect": {
+        "status": "ok",
+        "equals": {"found": true, "match_type": "path", "symbol": "IDP.Miniapp.view.setContainerOptions", "name": "setContainerOptions"},
+        "truthy": ["definition_owner", "source_note"],
+        "source_lines_valid": true
+      }
+    },
+    {
+      "id": "MCP-A04",
+      "tool": "get_api",
+      "category": "happy_path",
+      "description": "UI/VM 通信 API 的成员路径匹配",
+      "arguments": {"symbol": "IDP.Miniapp.view.defaultFrame.postMessage"},
+      "expect": {
+        "status": "ok",
+        "equals": {"found": true, "match_type": "path", "name": "postMessage"},
+        "truthy": ["definition_owner"],
+        "source_lines_valid": true
+      }
+    },
+    {
+      "id": "MCP-A05",
+      "tool": "get_api",
+      "category": "boundary",
+      "description": "省略命名空间前缀（后缀匹配）应解析到真实符号并如实标注 match_type",
+      "arguments": {"symbol": "Miniapp.exit"},
+      "expect": {
+        "status": "ok",
+        "equals": {"found": true, "match_type": "suffix", "symbol": "IDP.Miniapp.exit"}
+      }
+    },
+    {
+      "id": "MCP-A06",
+      "tool": "get_api",
+      "category": "boundary",
+      "description": "大小写不敏感匹配应解析到真实符号并如实标注 match_type",
+      "arguments": {"symbol": "idp.miniapp.exit"},
+      "expect": {
+        "status": "ok",
+        "equals": {"found": true, "match_type": "case_insensitive", "symbol": "IDP.Miniapp.exit"}
+      }
+    },
+    {
+      "id": "MCP-A07",
+      "tool": "get_api",
+      "category": "not_found",
+      "description": "不存在的 API 必须明确 not_found 并给出候选，绝不编造签名",
+      "arguments": {"symbol": "IDP.Miniapp.closeMiniapp"},
+      "expect": {
+        "status": "not_found",
+        "equals": {"found": false, "match_type": "none"},
+        "falsy": ["signature", "parameters", "return_type"],
+        "min_len": {"candidate_symbols": 1},
+        "contains": {"message": "不存在"}
+      }
+    },
+    {
+      "id": "MCP-A08",
+      "tool": "get_api",
+      "category": "not_found",
+      "description": "纯自然语言中文本体作为符号名时应明确 not_found（不臆造）",
+      "arguments": {"symbol": "退出小程序"},
+      "expect": {
+        "status": "not_found",
+        "equals": {"found": false},
+        "falsy": ["signature"]
+      }
+    },
+    {
+      "id": "MCP-A09",
+      "tool": "get_api",
+      "category": "boundary",
+      "description": "指定不存在的 SDK 版本时必须给出 version_warning，且仍返回真实版本",
+      "arguments": {"symbol": "IDP.Miniapp.exit", "sdk_version": "9.99.0"},
+      "expect": {
+        "status": "ok",
+        "equals": {"found": true, "sdk_version": "1.83.0"},
+        "truthy": ["version_warning"],
+        "contains": {"version_warning": "9.99.0"}
+      }
+    },
+    {
+      "id": "MCP-A10",
+      "tool": "get_api",
+      "category": "boundary",
+      "description": "未指定 SDK 版本时不应产生 version_warning",
+      "arguments": {"symbol": "IDP.Miniapp.exit"},
+      "expect": {"status": "ok", "falsy": ["version_warning"]}
+    },
+    {
+      "id": "MCP-A11",
+      "tool": "get_api",
+      "category": "boundary",
+      "description": "空符号名应被入参护栏拒绝，工具不被调用",
+      "arguments": {"symbol": ""},
+      "expect": {"outcome": "rejected"}
+    },
+    {
+      "id": "MCP-A12",
+      "tool": "get_api",
+      "category": "boundary",
+      "description": "含反引号与 SQL 片段的注入式符号名应安全降级为 not_found，并把真实符号作为候选返回",
+      "arguments": {"symbol": "IDP.Miniapp.exit` OR 1=1 --"},
+      "expect": {
+        "status": "not_found",
+        "equals": {"found": false},
+        "contains_any": {"candidate_symbols[*].symbol": ["IDP.Miniapp.exit"]}
+      }
+    },
+
+    {
+      "id": "MCP-B01",
+      "tool": "get_type",
+      "category": "happy_path",
+      "description": "接口类型必须返回全部字段名，供构造入参",
+      "arguments": {"name": "MiniappUploadDataOption"},
+      "expect": {
+        "status": "ok",
+        "equals": {"found": true, "kind": "interface", "match_type": "exact"},
+        "contains_all": {"fields[*].name": ["miniappId", "data"]},
+        "min_len": {"fields": 2},
+        "source_lines_valid": true
+      }
+    },
+    {
+      "id": "MCP-B02",
+      "tool": "get_type",
+      "category": "happy_path",
+      "description": "必填标记必须正确：MiniappUploadDataOption 字段全部必填",
+      "arguments": {"name": "MiniappUploadDataOption"},
+      "expect": {"status": "ok", "all_equal": {"fields[*].required": true}}
+    },
+    {
+      "id": "MCP-B03",
+      "tool": "get_type",
+      "category": "happy_path",
+      "description": "窗口选项类型必须返回 windowMode/minimizable 等合法字段且标记为可选",
+      "arguments": {"name": "MainMountPointOptions"},
+      "expect": {
+        "status": "ok",
+        "equals": {"found": true, "kind": "interface"},
+        "contains_all": {"fields[*].name": ["windowMode", "minimizable"]},
+        "all_equal": {"fields[*].required": false}
+      }
+    },
+    {
+      "id": "MCP-B04",
+      "tool": "get_type",
+      "category": "happy_path",
+      "description": "枚举类型必须返回枚举成员",
+      "arguments": {"name": "EToolType"},
+      "expect": {
+        "status": "ok",
+        "equals": {"found": true, "kind": "enum"},
+        "contains_all": {"enum_members[*].name": ["Wardrobe", "Cabinet"]},
+        "min_len": {"enum_members": 2}
+      }
+    },
+    {
+      "id": "MCP-B05",
+      "tool": "get_type",
+      "category": "not_found",
+      "description": "不存在的类型必须明确 not_found，不臆造字段",
+      "arguments": {"name": "NotExistOption"},
+      "expect": {
+        "status": "not_found",
+        "equals": {"found": false},
+        "falsy": ["fields"],
+        "contains": {"message": "不存在"}
+      }
+    },
+    {
+      "id": "MCP-B06",
+      "tool": "get_type",
+      "category": "boundary",
+      "description": "大小写不敏感的类型名匹配",
+      "arguments": {"name": "mainmountpointoptions"},
+      "expect": {
+        "status": "ok",
+        "equals": {"match_type": "case_insensitive", "name": "MainMountPointOptions"}
+      }
+    },
+    {
+      "id": "MCP-B07",
+      "tool": "get_type",
+      "category": "boundary",
+      "description": "空类型名应被入参护栏拒绝",
+      "arguments": {"name": ""},
+      "expect": {"outcome": "rejected"}
+    },
+
+    {
+      "id": "MCP-C01",
+      "tool": "get_related_symbols",
+      "category": "happy_path",
+      "description": "依赖展开必须覆盖 API 的入参类型与返回类型",
+      "arguments": {"symbol": "IDP.Miniapp.uploadDataAsync", "depth": 1},
+      "expect": {
+        "status": "ok",
+        "equals": {"found": true, "depth": 1},
+        "contains_all": {"related_symbols": ["MiniappUploadDataOption", "MiniappUploadDataResult"]}
+      }
+    },
+    {
+      "id": "MCP-C02",
+      "tool": "get_related_symbols",
+      "category": "boundary",
+      "description": "depth 上限（3）应被接受",
+      "arguments": {"symbol": "IDP.Miniapp.uploadDataAsync", "depth": 3},
+      "expect": {"status": "ok", "equals": {"found": true, "depth": 3}}
+    },
+    {
+      "id": "MCP-C03",
+      "tool": "get_related_symbols",
+      "category": "not_found",
+      "description": "不存在的符号应返回 not_found 与空关联列表",
+      "arguments": {"symbol": "IDP.Nope.NotExist"},
+      "expect": {
+        "status": "not_found",
+        "equals": {"found": false},
+        "max_len": {"related_symbols": 0},
+        "truthy": ["message"]
+      }
+    },
+    {
+      "id": "MCP-C04",
+      "tool": "get_related_symbols",
+      "category": "boundary",
+      "description": "depth=0 低于下界，应被入参护栏拒绝",
+      "arguments": {"symbol": "IDP.Miniapp.uploadDataAsync", "depth": 0},
+      "expect": {"outcome": "rejected"}
+    },
+    {
+      "id": "MCP-C05",
+      "tool": "get_related_symbols",
+      "category": "boundary",
+      "description": "depth=99 高于上界，应被入参护栏拒绝",
+      "arguments": {"symbol": "IDP.Miniapp.uploadDataAsync", "depth": 99},
+      "expect": {"outcome": "rejected"}
+    },
+
+    {
+      "id": "MCP-D01",
+      "tool": "search_docs",
+      "category": "happy_path",
+      "description": "自然语言检索走 hybrid 模式，结果必须可追溯（source_file + 行号）",
+      "arguments": {"query": "工具插件 UI 和 VM 怎么通信", "top_k": 3},
+      "expect": {
+        "status": "ok",
+        "equals": {"mode": "hybrid"},
+        "min_len": {"results": 1},
+        "contains_any": {"results[*].symbol": ["rag.工具插件代码结构", "rag.工具插件说明"]},
+        "citation_complete": true
+      }
+    },
+    {
+      "id": "MCP-D02",
+      "tool": "search_docs",
+      "category": "boundary",
+      "description": "top_k=1 应只返回 1 条",
+      "arguments": {"query": "工具插件 UI 和 VM 怎么通信", "top_k": 1},
+      "expect": {"status": "ok", "max_len": {"results": 1}}
+    },
+    {
+      "id": "MCP-D03",
+      "tool": "search_docs",
+      "category": "boundary",
+      "description": "top_k=20 应返回足量结果",
+      "arguments": {"query": "工具插件 UI 和 VM 怎么通信", "top_k": 20},
+      "expect": {"status": "ok", "min_len": {"results": 10}}
+    },
+    {
+      "id": "MCP-D04",
+      "tool": "search_docs",
+      "category": "boundary",
+      "description": "按不存在的 SDK 版本过滤后，结果只允许是无版本的文档或该版本的符号",
+      "arguments": {"query": "工具插件 UI 和 VM 怎么通信", "top_k": 5, "sdk_version": "9.99.0"},
+      "expect": {"status": "ok", "all_in": {"results[*].sdk_version": ["", "9.99.0"]}}
+    },
+    {
+      "id": "MCP-D05",
+      "tool": "search_docs",
+      "category": "happy_path",
+      "description": "按真实 SDK 版本过滤应保留文档与该版本符号",
+      "arguments": {"query": "工具插件 UI 和 VM 怎么通信", "top_k": 5, "sdk_version": "1.83.0"},
+      "expect": {
+        "status": "ok",
+        "min_len": {"results": 1},
+        "all_in": {"results[*].sdk_version": ["", "1.83.0"]}
+      }
+    },
+    {
+      "id": "MCP-D06",
+      "tool": "search_docs",
+      "category": "boundary",
+      "description": "500 字超长 query（上界）应正常检索而不报错",
+      "arguments": {"query": "退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序退出小程序", "top_k": 3},
+      "expect": {"status": "ok", "min_len": {"results": 1}}
+    },
+    {
+      "id": "MCP-D07",
+      "tool": "search_docs",
+      "category": "boundary",
+      "description": "空 query 应被入参护栏拒绝",
+      "arguments": {"query": ""},
+      "expect": {"outcome": "rejected"}
+    },
+    {
+      "id": "MCP-D08",
+      "tool": "search_docs",
+      "category": "boundary",
+      "description": "top_k=0 低于下界，应被入参护栏拒绝",
+      "arguments": {"query": "工具插件 UI 和 VM 怎么通信", "top_k": 0},
+      "expect": {"outcome": "rejected"}
+    },
+    {
+      "id": "MCP-D09",
+      "tool": "search_docs",
+      "category": "boundary",
+      "description": "top_k=21 高于上界，应被入参护栏拒绝",
+      "arguments": {"query": "工具插件 UI 和 VM 怎么通信", "top_k": 21},
+      "expect": {"outcome": "rejected"}
+    },
+    {
+      "id": "MCP-D10",
+      "tool": "search_docs",
+      "category": "degradation",
+      "description": "向量库不可用时必须降级为 keyword_fallback 并如实标注 mode，不得伪装成 hybrid",
+      "arguments": {"query": "工具插件 UI 和 VM 怎么通信", "top_k": 3},
+      "force": {"retrieval_available": false},
+      "expect": {"equals": {"mode": "keyword_fallback"}},
+      "determinism": true
+    },
+
+    {
+      "id": "MCP-E01",
+      "tool": "get_examples",
+      "category": "happy_path",
+      "description": "有官方示例的主题必须返回真实片段",
+      "arguments": {"symbol": "工具插件代码结构"},
+      "expect": {
+        "status": "ok",
+        "equals": {"found": true},
+        "min_len": {"examples": 1},
+        "all_equal": {"examples[*].verified_source": true}
+      }
+    },
+    {
+      "id": "MCP-E02",
+      "tool": "get_examples",
+      "category": "happy_path",
+      "description": "UI/VM 通信 API 应能检索到官方示例",
+      "arguments": {"symbol": "IDP.Miniapp.view.defaultFrame.postMessage"},
+      "expect": {"status": "ok", "equals": {"found": true}, "min_len": {"examples": 1}}
+    },
+    {
+      "id": "MCP-E03",
+      "tool": "get_examples",
+      "category": "not_found",
+      "description": "无官方示例时必须返回空列表并提示勿把模型生成代码当官方示例",
+      "arguments": {"symbol": "IDP.Miniapp.exit"},
+      "expect": {
+        "status": "not_found",
+        "equals": {"found": false, "example_count": 0},
+        "falsy": ["examples"],
+        "contains": {"message": "请勿把模型生成的代码当作官方示例"}
+      }
+    },
+    {
+      "id": "MCP-E04",
+      "tool": "get_examples",
+      "category": "not_found",
+      "description": "另一个无官方示例的符号同样必须诚实返回空",
+      "arguments": {"symbol": "IDP.Miniapp.uploadDataAsync"},
+      "expect": {"status": "not_found", "equals": {"found": false, "example_count": 0}}
+    },
+    {
+      "id": "MCP-E05",
+      "tool": "get_examples",
+      "category": "boundary",
+      "description": "空符号名应被入参护栏拒绝",
+      "arguments": {"symbol": ""},
+      "expect": {"outcome": "rejected"}
+    },
+
+    {
+      "id": "MCP-F01",
+      "tool": "validate_api_usage",
+      "category": "happy_path",
+      "description": "合法用法应判定通过且零问题",
+      "arguments": {"code": "IDP.Miniapp.exit();"},
+      "expect": {"status": "ok", "equals": {"valid": true, "issue_count": 0}, "falsy": ["issues"]}
+    },
+    {
+      "id": "MCP-F02",
+      "tool": "validate_api_usage",
+      "category": "happy_path",
+      "description": "不存在的 API 必须报 unknown_api 且判定为 invalid",
+      "arguments": {"code": "IDP.Miniapp.exitMiniapp();"},
+      "expect": {
+        "status": "invalid",
+        "equals": {"valid": false},
+        "min_len": {"issues": 1},
+        "contains_any": {"issues[*].type": ["unknown_api"]}
+      }
+    },
+    {
+      "id": "MCP-F03",
+      "tool": "validate_api_usage",
+      "category": "happy_path",
+      "description": "错误参数名必须报 unknown_parameter",
+      "arguments": {"code": "IDP.Miniapp.uploadDataAsync({ miniappId: \"1\", dat: \"x\" });"},
+      "expect": {
+        "status": "invalid",
+        "equals": {"valid": false},
+        "contains_any": {"issues[*].type": ["unknown_parameter"]}
+      }
+    },
+    {
+      "id": "MCP-F04",
+      "tool": "validate_api_usage",
+      "category": "boundary",
+      "description": "带正确 SDK 版本的合法用法应通过",
+      "arguments": {"code": "IDP.Miniapp.uploadDataAsync({ miniappId: \"1\", data: \"x\" });", "sdk_version": "1.83.0"},
+      "expect": {"status": "ok", "equals": {"valid": true, "issue_count": 0}}
+    },
+    {
+      "id": "MCP-F05",
+      "tool": "validate_api_usage",
+      "category": "boundary",
+      "description": "SDK 版本不一致只告警（warning），不应把合法用法判成 invalid",
+      "arguments": {"code": "IDP.Miniapp.uploadDataAsync({ miniappId: \"1\", data: \"x\" });", "sdk_version": "9.99.0"},
+      "expect": {
+        "status": "ok",
+        "equals": {"valid": true},
+        "contains_any": {"issues[*].type": ["sdk_version_mismatch"]}
+      }
+    },
+    {
+      "id": "MCP-F06",
+      "tool": "validate_api_usage",
+      "category": "boundary",
+      "description": "超长代码应被截断并如实标注 truncated",
+      "arguments": {"code": "IDP.Miniapp.exit();\n// pad\n"},
+      "force": {"code_pad_to": 25000},
+      "expect": {"status": "ok", "equals": {"truncated": true}}
+    },
+    {
+      "id": "MCP-F07",
+      "tool": "validate_api_usage",
+      "category": "boundary",
+      "description": "空代码应被入参护栏拒绝",
+      "arguments": {"code": ""},
+      "expect": {"outcome": "rejected"}
+    },
+
+    {
+      "id": "MCP-G01",
+      "tool": "get_plugin_constraints",
+      "category": "happy_path",
+      "description": "默认查询应返回 kujiale 全量约束",
+      "arguments": {"component": "all"},
+      "expect": {
+        "status": "ok",
+        "equals": {"success": true, "data.platform": "kujiale"},
+        "min_len": {"data.constraints": 1},
+        "contains_any": {"data.constraints.0.severity": ["critical", "high"]}
+      }
+    },
+    {
+      "id": "MCP-G02",
+      "tool": "get_plugin_constraints",
+      "category": "happy_path",
+      "description": "按 vm 组件过滤应返回该组件的约束",
+      "arguments": {"component": "vm"},
+      "expect": {
+        "status": "ok",
+        "equals": {"data.component": "vm"},
+        "min_len": {"data.constraints": 1}
+      }
+    },
+    {
+      "id": "MCP-G03",
+      "tool": "get_plugin_constraints",
+      "category": "happy_path",
+      "description": "communication 组件应返回 UI/VM 通信约束",
+      "arguments": {"component": "communication"},
+      "expect": {
+        "status": "ok",
+        "contains_any": {"data.constraints[*].rule_id": ["KJL-COMM-001", "KJL-COMM-002"]}
+      }
+    },
+    {
+      "id": "MCP-G04",
+      "tool": "get_plugin_constraints",
+      "category": "unsupported",
+      "description": "不支持的平台必须返回 not_supported，不得返回空约束冒充成功",
+      "arguments": {"platform": "autodesk"},
+      "expect": {
+        "status": "not_supported",
+        "equals": {"success": false},
+        "contains": {"message": "仅支持 kujiale"}
+      }
+    },
+    {
+      "id": "MCP-G05",
+      "tool": "get_plugin_constraints",
+      "category": "boundary",
+      "description": "非法 component 当前返回结构化 error 并列出可选值（与 G04 的 not_supported 语义不一致，待改进）",
+      "arguments": {"component": "not_a_component"},
+      "expect": {
+        "status": "error",
+        "contains": {"message": "可选值"}
+      },
+      "determinism": true
+    },
+
+    {
+      "id": "MCP-H01",
+      "tool": "get_plugin_scaffold",
+      "category": "happy_path",
+      "description": "vanilla 技术栈应返回最小骨架文件",
+      "arguments": {"stack": "vanilla"},
+      "expect": {
+        "status": "ok",
+        "equals": {"success": true, "data.stack": "vanilla"},
+        "truthy": ["data.files"]
+      }
+    },
+    {
+      "id": "MCP-H02",
+      "tool": "get_plugin_scaffold",
+      "category": "happy_path",
+      "description": "react-ts-webpack 技术栈应返回对应骨架",
+      "arguments": {"stack": "react-ts-webpack"},
+      "expect": {
+        "status": "ok",
+        "equals": {"success": true, "data.stack": "react-ts-webpack"},
+        "truthy": ["data.files"]
+      }
+    },
+    {
+      "id": "MCP-H03",
+      "tool": "get_plugin_scaffold",
+      "category": "unsupported",
+      "description": "不支持的技术栈必须明确拒绝并列出可选值",
+      "arguments": {"stack": "vue3-vite"},
+      "expect": {
+        "status": "unsupported_stack",
+        "equals": {"success": false},
+        "contains": {"message": "可选值"}
+      }
+    },
+    {
+      "id": "MCP-H04",
+      "tool": "get_plugin_scaffold",
+      "category": "unsupported",
+      "description": "不支持的平台必须拒绝",
+      "arguments": {"platform": "autodesk"},
+      "expect": {"status": "not_supported", "equals": {"success": false}}
+    },
+    {
+      "id": "MCP-H05",
+      "tool": "get_plugin_scaffold",
+      "category": "unsupported",
+      "description": "不支持的插件类型必须拒绝",
+      "arguments": {"plugin_type": "panel_plugin"},
+      "expect": {"status": "not_supported", "equals": {"success": false}}
+    },
+
+    {
+      "id": "MCP-I01",
+      "tool": "get_api",
+      "category": "error_safety",
+      "description": "工具内部异常必须收敛为结构化 error，不得泄露 traceback，不得伪装成 not_found",
+      "arguments": {"symbol": "IDP.Miniapp.exit"},
+      "inject_error": {"target": "knowledge.resolve_deep"},
+      "expect": {
+        "status": "error",
+        "equals": {"error_type": "RuntimeError"},
+        "falsy": ["found", "signature"],
+        "contains": {"message": "执行失败"},
+        "not_contains": {"message": "Traceback"}
+      }
+    },
+    {
+      "id": "MCP-I02",
+      "tool": "get_api",
+      "category": "error_safety",
+      "description": "单个工具异常后，同一 Server 上的其他工具必须仍然可用（故障隔离）",
+      "arguments": {"symbol": "IDP.Miniapp.exit"},
+      "inject_error": {"target": "knowledge.resolve_deep"},
+      "expect": {"status": "error"},
+      "then": {
+        "tool": "get_type",
+        "arguments": {"name": "MiniappUploadDataOption"},
+        "expect": {"status": "ok", "equals": {"found": true}}
+      }
+    }
+  ]
+}

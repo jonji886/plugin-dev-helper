@@ -126,9 +126,18 @@ class MetricsStore:
                 SELECT tool_name, COUNT(*) total_requests,
                 COALESCE(SUM(status='success'),0) successful_requests,
                 COALESCE(AVG(duration_ms),0) avg_duration_ms,
+                COALESCE(MIN(duration_ms),0) min_duration_ms,
+                COALESCE(MAX(duration_ms),0) max_duration_ms,
                 COALESCE(SUM(result_count),0) result_count,
                 COALESCE(SUM(status='error'),0) failed_requests
                 FROM recent GROUP BY tool_name""").fetchall()
+            # 分位数单独取明细：SQLite 没有 percentile 函数，样本量在窗口内可控
+            duration_rows = connection.execute(f"""SELECT tool_name, duration_ms FROM (
+                    SELECT tool_name, duration_ms FROM mcp_tool_logs
+                    ORDER BY created_at DESC, rowid DESC LIMIT {self.METRICS_WINDOW_SIZE})""").fetchall()
+        durations: dict[str, list[float]] = {}
+        for row in duration_rows:
+            durations.setdefault(row["tool_name"], []).append(float(row["duration_ms"]))
         return {
             "window_limit": self.METRICS_WINDOW_SIZE,
             "tools": {
@@ -139,11 +148,25 @@ class MetricsStore:
                     "failure_rate": round(row["failed_requests"] / row["total_requests"], 4)
                     if row["total_requests"] else 0.0,
                     "avg_duration_ms": round(row["avg_duration_ms"], 2),
+                    "min_duration_ms": round(row["min_duration_ms"], 2),
+                    "max_duration_ms": round(row["max_duration_ms"], 2),
+                    "p50_duration_ms": self._mcp_percentile(durations.get(row["tool_name"], []), 49),
+                    "p95_duration_ms": self._mcp_percentile(durations.get(row["tool_name"], []), 94),
+                    "p99_duration_ms": self._mcp_percentile(durations.get(row["tool_name"], []), 98),
                     "result_count": row["result_count"],
                 }
                 for row in rows
             },
         }
+
+    @staticmethod
+    def _mcp_percentile(values: list[float], index: int) -> float:
+        """按与 Chat 侧一致的口径计算分位数；样本不足 2 条时退化为单点值。"""
+        if not values:
+            return 0.0
+        if len(values) == 1:
+            return round(values[0], 2)
+        return round(quantiles(values, n=100, method="inclusive")[index], 2)
 
     def record_feedback(self, request_id: str, helpful: bool, comment: str = "", reason: str = "") -> bool:
         with self._connect() as connection:
