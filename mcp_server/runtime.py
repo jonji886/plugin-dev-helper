@@ -11,6 +11,7 @@ from mcp_server.services.knowledge import KnowledgeService
 from mcp_server.services.retrieval import RetrievalService
 from mcp_server.services.scaffold import KujialeScaffoldService
 from mcp_server.services.validator import UsageValidator
+from mcp_server.services.project_validator import ProjectValidator
 from mcp_server.rules import KujialeRuleEngine
 from mcp_server.telemetry import McpTelemetry
 
@@ -23,6 +24,7 @@ class Container:
     graph: GraphService
     examples: ExampleService
     validator: UsageValidator
+    project_validator: ProjectValidator
     kujiale_rules: KujialeRuleEngine
     scaffold: KujialeScaffoldService
     telemetry: McpTelemetry
@@ -61,6 +63,12 @@ def build_container(settings: MCPSettings | None = None) -> Container:
             max_example_chars=settings.max_example_chars,
         ),
         validator=validator,
+        project_validator=ProjectValidator(
+            knowledge,
+            kujiale_rules,
+            sdk_version=settings.default_sdk_version,
+            tsc_cmd=None,
+        ),
         kujiale_rules=kujiale_rules,
         scaffold=KujialeScaffoldService(kujiale_rules),
         telemetry=McpTelemetry(settings.database_path, enabled=settings.telemetry_enabled),

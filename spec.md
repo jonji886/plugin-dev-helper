@@ -305,3 +305,19 @@ project/
 * 自动生成代码示例
 * 工单系统集成
 * 企业微信机器人接入
+
+---
+
+# 16. Coding Agent P0：验证 → 修复 → 追踪 → 评估
+
+目标：让“Agent 产出是否可交付”成为可确定性判定、可闭环修复、可追踪归因、可回归评估的工程能力。
+设计决策见 `docs/adr/ADR-001 ~ ADR-004`，链路总览见 `docs/architecture-coding-agent-p0.md`。
+
+| 组件 | 位置 | 验收标准 |
+| --- | --- | --- |
+| 项目级确定性校验 | `mcp_server/services/project_validator.py`、MCP 工具 `validate_plugin_project` | 五类检查（STRUCTURE/MANIFEST/RULE/API/BUILD）；宿主运行期规则显式标记需宿主验证；dist/build 不参与；合法样例 valid=true |
+| 有界 Repair Loop | `agent/runtime/repair.py` | 证据驱动、最小必要修改、上限收敛、每轮 ArtifactVersion 可回放 |
+| Task Runtime | `agent/runtime/` | 状态机非法迁移显式报错；SQLite 持久化，重启可恢复；TraceEvent 含 artifact_version |
+| Benchmark Harness | `scripts/run_coding_agent_benchmark.py` | Baseline vs MCP 唯一变量为 MCP 访问权；确定性评分；reference 驱动仅自检；真实 Agent 实验未接入前恒为 NOT_RUN |
+
+P0 完成定义：`pytest tests/` 全绿；benchmark 自检 mcp（参考解）全过、baseline 为下界；所有对外产物显著标注真实 Agent 实验 NOT_RUN。

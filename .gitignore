@@ -26,6 +26,8 @@ data/*.sqlite3-*
 eval/eval_results.json
 eval/prompt_eval_results.json
 eval/failure_candidates*.jsonl
+# Coding Agent Benchmark 每次运行的生成工程（含 dist/，可重跑复现）
+benchmark/results/_runs/
 
 # IDE 本地数据（含集成凭据）
 .codebuddy/

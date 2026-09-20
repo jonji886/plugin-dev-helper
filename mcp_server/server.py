@@ -28,8 +28,9 @@ INSTRUCTIONS = (
     "自然语言问题用 search_docs；精确 API 定义用 get_api；构造参数前用 get_type；"
     "展开依赖用 get_related_symbols；找官方示例用 get_examples；"
     "涉及酷家乐工具插件时，开发前用 get_plugin_constraints，必要时用 get_plugin_scaffold，"
-    "声明可运行前，请自行用浏览器或 HTTP 客户端验证本地 HTTP Server 的 manifest/frame/main、CORS 与 OPTIONS 预检；"
-    "改完单段 API 代码可用 validate_api_usage 自检。"
+    "改完单段 API 代码可用 validate_api_usage 自检；"
+    "完成整个工程后，用 validate_plugin_project 做项目级确定性校验（结构 / manifest / 规则 / API / 构建）。"
+    "声明可运行前，请自行用浏览器或 HTTP 客户端验证本地 HTTP Server 的 manifest/frame/main、CORS 与 OPTIONS 预检。"
     "查不到时会明确返回 not_found，不要臆造 API。"
 )
 

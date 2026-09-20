@@ -20,6 +20,7 @@ EXPECTED_TOOLS = {
     "validate_api_usage",
     "get_plugin_constraints",
     "get_plugin_scaffold",
+    "validate_plugin_project",
 }
 
 
