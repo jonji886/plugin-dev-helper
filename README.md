@@ -389,7 +389,7 @@ MCP 客户端配置示例：
 
 声明可运行前，请自行用浏览器或 HTTP 客户端验证本地 HTTP Server 的 manifest/frame/main、CORS 与 OPTIONS 预检。
 
-插件工程的静态扫描工具（`validate_plugin_project`）已移除，相关 Guardrail 约束仍可通过 `get_plugin_constraints` 获取。运行期 manifest/frame/main、CORS 与 OPTIONS 预检需由开发者在本地启动服务后用浏览器或 HTTP 客户端自行验证。
+插件工程可调用 `validate_plugin_project(project_dir)` 做**项目级确定性校验**（结构 / manifest / 平台规则 / API 符号幻觉，基于与查询侧同一份知识索引与规则层；`dist`、`build`、`node_modules` 不参与）。CORS 与 OPTIONS 预检等宿主运行期行为无法静态判定，校验结果会显式标记为“需宿主环境验证”，需本地启动服务后自行确认。设计决策见 [`docs/adr/`](docs/adr)，整体链路见 [`docs/architecture-coding-agent-p0.md`](docs/architecture-coding-agent-p0.md)。
 
 [`demos/buggy_kujiale_plugin/`](demos/buggy_kujiale_plugin) 故意包含违反 Guardrail 的写法，可供对照 `get_plugin_constraints` 返回的规则学习。规则来自当前项目维护的插件开发知识和约束；本项目属于个人技术 POC，不代表酷家乐官方规范的完整或永久版本。
 

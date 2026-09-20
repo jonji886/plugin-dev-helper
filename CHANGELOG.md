@@ -7,6 +7,11 @@
 ## [Unreleased]
 
 ### Added
+- 新增 **P0 Coding Agent 工程化**（见 `docs/architecture-coding-agent-p0.md` 与 `docs/adr/ADR-001~004`）：项目级确定性校验、有界 Repair Loop、Task Runtime、Coding Agent Benchmark harness
+- 重新引入 `validate_plugin_project` MCP 工具（新实现 `mcp_server/services/project_validator.py`）：STRUCTURE / MANIFEST / RULE / API / BUILD 五类确定性检查，复用与查询侧同一份知识索引（`data/knowledge`）和规则层（`rules/kujiale`）；宿主运行期规则（CORS / OPTIONS / 探活）显式标记“需宿主验证”，不伪造通过；`dist` / `build` / `node_modules` 不参与校验
+- 新增 `agent/runtime` 包：`Task / TaskStep / Checkpoint / ArtifactVersion / TraceEvent` 模型、`TaskStateMachine`（非法迁移显式报错）、SQLite repositories（重启可恢复）、`Error Taxonomy`（Retry 按分类而非裸 except）
+- 新增有界 Repair Loop `agent/runtime/repair.py`：以 Validator Issue 为证据的最小必要修复，超过 `max_repair_attempts` 进入 FAILED，每轮产生新 ArtifactVersion 与 TraceEvent
+- 新增 Coding Agent Benchmark harness `scripts/run_coding_agent_benchmark.py`：Baseline vs MCP 控制变量对比、确定性评分（acceptance + 源文件级 API/RULE 判定，不依赖 LLM Judge）；`reference` 驱动结果仅为管线自检，真实外部 Agent（`--driver external`）未接入前状态恒为 **NOT_RUN**；自检产物见 `benchmark/results/agent_benchmark_{runs,summary,comparison}`
 - 新增 MCP 工具级黄金评测集 `benchmark/mcp_golden.json`（58 条用例，覆盖 8 个工具的 happy_path / not_found / boundary / degradation / unsupported / error_safety）与执行器 `scripts/run_mcp_eval.py`：输出 Contract Pass Rate、Status Accuracy、Determinism Rate（同参重复调用比对，剔除 `request_id`/`duration_ms`）、Not-Found Precision、Task Symbol Coverage 与分工具 P50/P95，并按 `benchmark/mcp_gate.json` 判定 GATE
 - 新增 Agent 调用轨迹评分器 `scripts/check_agent_trace.py`，首次真正消费 `tasks.json` 中的 `mcp_tools_expected` 与 `reference_symbols`：输出工具选择 P/R/F1、符号覆盖率、冗余调用率、序列合规（constraints 先于 scaffold、get_api/get_type 先于 validate_api_usage）与拒答正确性；`--self-test` 用明确标注的合成轨迹验证评分器自身
 - 新增 10 个 benchmark 参考解 `benchmark/solutions/T01..T10/vm.ts` 与轨迹落盘规范 `benchmark/traces/README.md`
@@ -16,11 +21,16 @@
 
 ### Changed
 - `scripts/check_benchmark_task.py` 支持 `--mode initial|solution|both`：`initial` 校验 fixture 初始态按预期失败（证明 acceptance 非真空），`solution` 写入参考解验收后自动还原；开始尊重此前被忽略的 `acceptance.typecheck` / `acceptance.build` 开关；新增 `--json` 导出结构化结果
+- `KJL-COMM-001 / 002` 规则语义修正为 require 型（“存在通信行为时必须使用合法方式”，detection 新增 `mode: require` + `trigger`，scope 分别限定 ui / vm）：原实现把“发现合法模式 `window.parent.postMessage` / `defaultFrame.postMessage`”判为违规，导致合法工程被误报 HIGH
+- `KJL-VM-006` 检测收紧：仅“明显的 IDP Promise 链（`.then`）缺 catch”上报，裸 `await IDP.xAsync()` 不做静态判定（宁可少报）
 - `benchmark/tasks.json` 新增 `reference_solution` 与 `acceptance.initial_expect_fail` 字段，并在 `meta.field_notes` 中说明各字段由哪个脚本消费
 - CI 在构建知识库后新增两步确定性评测：`scripts/run_mcp_eval.py --repeat 3` 与 `scripts/run_mcp_sequences.py`；`check_mcp_stability.py` 因含时间与漂移阈值、在共享 runner 上易误报，保持手动执行
 
 ### Fixed
 - 修复 T08 验收断言 `not_contains:dat` 与 `contains:data` 自相矛盾（`data` 含子串 `dat`，任何正确解都必然失败），改为 `not_contains:dat:`
+- 修复 `object_literal_keys` 不支持 ES6 简写属性（`{ miniappId, data }`），此前会误报 `uploadDataAsync` 缺少必填字段
+- 修复 API / RULE 校验扫描到 `dist` / `build` 编译残留产物的问题（fixture 常含过期的错误编译 JS，会产生无法修复的假问题），一律排除
+- 修复 Benchmark harness 误用测试用小型知识库导致合法 API（`IDP.Miniapp.view.*`、`IDP.Custom.*`）被判“幻觉”的问题：评测与线上 MCP 现在共用同一份 `data/knowledge` 与规则层
 - 修复 T09 验收断言 `not_contains:IDP.Miniapp.closeMiniapp` 与 `expected_behavior` 冲突（需求允许用注释说明，但注释中出现该符号名即判失败），改为 `not_contains:IDP.Miniapp.closeMiniapp(`，只拦截真实调用
 - `run_mcp_eval.py` 在评测前预热 embedding 检索，避免首个 `search_docs` 把本地模型加载时间计入延迟指标
 

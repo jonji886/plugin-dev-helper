@@ -331,6 +331,7 @@ type: description
 4. 插件前端不得直接调用酷家乐 Open API；外部服务请求必须使用 HTTPS，并通过开发者后端转发。
 5. 存在 Critical/High 约束违反时不得视为开发完成，无法修复时明确记录原因。
 6. 酷家乐平台约束以 MCP Rule Layer 为事实来源，不在 AGENTS.md 重复维护完整规则。
+7. 项目级交付判定统一使用 `validate_plugin_project`（确定性检查，复用同一知识索引与规则层）；其标记为需宿主环境验证的项（CORS / OPTIONS 等）不得静态宣布通过。设计决策见 `docs/adr/`。
 
 ---
 

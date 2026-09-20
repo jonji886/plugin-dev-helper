@@ -115,8 +115,35 @@ def object_literal_keys(text: str) -> list[str]:
                     cursor += 1
                 if cursor < length and text[cursor] == ":":
                     keys.append(match.group(0))
-                index = cursor
-                continue
+                    # 跳过 value，直到顶层 ',' 或对象结束，避免把值标识符误判为 key
+                    v = cursor + 1
+                    vdepth = 0
+                    while v < length:
+                        ch = text[v]
+                        if ch in "{[(":
+                            vdepth += 1
+                        elif ch in "}])":
+                            if vdepth == 0:
+                                break
+                            vdepth -= 1
+                        elif ch in "\"'`":
+                            quote = ch
+                            v += 1
+                            while v < length and text[v] != quote:
+                                if text[v] == "\\":
+                                    v += 1
+                                v += 1
+                        elif ch == "," and vdepth == 0:
+                            v += 1
+                            break
+                        v += 1
+                    index = v
+                    continue
+                if cursor < length and text[cursor] in ",}":
+                    # 简写属性：`{ miniappId, data }` 中 key 即标识符本身
+                    keys.append(match.group(0))
+                    index = cursor
+                    continue
         index += 1
     return keys
 

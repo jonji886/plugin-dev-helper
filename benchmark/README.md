@@ -165,3 +165,18 @@ Abstention Correctness（T09 类任务必须明确说明不存在）。
 
 > 说明：fixture 是最小工程，仅用于类型层面验收。真实插件运行还需要
 > `manifest.json` + `page.html`，不在本评测范围内。
+
+## 7. Coding Agent 项目级 Benchmark（P0）
+
+运行：
+
+```bash
+python scripts/run_coding_agent_benchmark.py --mode both --out-dir benchmark/results
+# 真实外部 Agent（接入后才有 Baseline vs MCP 结论）：
+python scripts/run_coding_agent_benchmark.py --driver external --endpoint <agent-url>
+```
+
+- **控制变量**：两组唯一差异是是否可访问 plugin-dev-helper MCP（`scripts/agent_drivers/`）；相同任务、相同初始 fixture、相同 `ProjectValidator` + 确定性 Evaluator（acceptance 断言 + 源文件级 API/RULE 判定，不用 LLM Judge）。
+- **诚实性约束**：默认 `--driver reference` 是确定性 stand-in，其产物（`results/agent_benchmark_*`）只能解读为 **harness 自检**（管线可用性 + 指标口径正确性），不是 Agent 能力分数；真实 Coding Agent Baseline vs MCP 实验在 external driver 接入前恒为 **NOT_RUN**（设计见 `docs/adr/ADR-004-*`）。
+- API / RULE 判定与线上 MCP 共用同一份 `data/knowledge` 与 `rules/kujiale`；`dist` / `build` / `node_modules` 不参与断言与校验；源码级任务不评估工程完整性规则（`KJL-DEV-*` / `KJL-MANIFEST-*`）。
+- 自检通过标准：mcp 模式（参考解）应全绿；baseline 模式（原始 fixture）作为保守下界；两组差值只说明“已知正解可通过校验器”，不用于宣称 Agent 收益。

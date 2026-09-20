@@ -43,7 +43,10 @@ class Rule(BaseModel):
     score_category: str = "runtime"
 
     def matches_scope(self, component: str) -> bool:
-        return component == "all" or self.scope == component
+        # 查询侧语义：component 命中 scope 或 category 任一即可。
+        # scope 表示静态校验时的文件定位（ui/vm），category 表示约束主题（如 communication）；
+        # 两者解耦后，component=communication 仍应返回 UI/VM 两侧的通信约束。
+        return component == "all" or self.scope == component or self.category == component
 
     def as_constraint(self) -> dict[str, object]:
         """返回适合 Coding Agent 消费的精简约束。"""

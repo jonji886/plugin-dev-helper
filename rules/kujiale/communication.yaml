@@ -2,13 +2,16 @@ rules:
   - id: KJL-COMM-001
     platform: kujiale
     category: communication
-    scope: communication
+    scope: ui
     severity: high
     title: UI → VM 必须使用合法消息通信方式
     description: UI 请求 VM 应使用 window.parent.postMessage 发送消息。
     detection:
       type: static_pattern
       pattern: window.parent.postMessage
+      # require 语义：文件里出现通信活动（trigger）时必须使用合法模式，而非“发现即违规”
+      mode: require
+      trigger: postMessage
     confidence: high
     suggestion: '使用 window.parent.postMessage({ action: "..." }, "*") 将请求发送给 VM。'
     references: [kujiale_plugin_runtime]
@@ -19,13 +22,15 @@ rules:
   - id: KJL-COMM-002
     platform: kujiale
     category: communication
-    scope: communication
+    scope: vm
     severity: high
     title: VM → UI 必须使用合法通信方式
     description: VM 返回 UI 应使用 IDP 插件 API 的 defaultFrame.postMessage。
     detection:
       type: static_pattern
       pattern: defaultFrame.postMessage
+      mode: require
+      trigger: postMessage
     confidence: high
     suggestion: '使用 IDP.Miniapp.view.defaultFrame.postMessage 将结果返回 UI。'
     references: [kujiale_plugin_runtime]

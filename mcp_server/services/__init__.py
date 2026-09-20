@@ -5,6 +5,7 @@ from mcp_server.services.graph import GraphService
 from mcp_server.services.knowledge import KnowledgeService
 from mcp_server.services.retrieval import RetrievalService
 from mcp_server.services.validator import UsageValidator
+from mcp_server.services.project_validator import ProjectValidator
 
 __all__ = [
     "ExampleService",
@@ -12,4 +13,5 @@ __all__ = [
     "KnowledgeService",
     "RetrievalService",
     "UsageValidator",
+    "ProjectValidator",
 ]

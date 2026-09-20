@@ -38,6 +38,21 @@ class KujialeGuardrailTests(unittest.TestCase):
         self.assertTrue(all(rule.scope == "vm" for rule in vm_rules))
         self.assertEqual(vm_rules[0].severity, "critical")
 
+    def test_query_by_component_matches_category_not_only_scope(self):
+        """scope 用于静态校验的文件定位（ui/vm），查询侧应仍能按 category 聚合。
+
+        回归背景：KJL-COMM-001/002 的 scope 从 communication 改为 ui/vm 后，
+        get_plugin_constraints(component=communication) 只剩 COMM-003，丢失核心通信约束。
+        """
+        engine = KujialeRuleEngine()
+        comm_ids = {rule.id for rule in engine.query("communication", limit=20)}
+        self.assertIn("KJL-COMM-001", comm_ids)
+        self.assertIn("KJL-COMM-002", comm_ids)
+        self.assertIn("KJL-COMM-003", comm_ids)
+        # 高严重级别规则排序在前
+        comm_rules = engine.query("communication", limit=20)
+        self.assertEqual(comm_rules[0].severity, "high")
+
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
