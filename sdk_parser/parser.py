@@ -309,7 +309,8 @@ class SDKParser:
             type_parameters=type_params,
             start_line=node.start_point[0] + 1,
             end_line=node.end_point[0] + 1,
-            references=list(set(refs)),
+            # 保序去重：set 迭代顺序随哈希种子变化，会让构建产物顺序不确定（本地与 CI 不一致）
+            references=list(dict.fromkeys(refs)),
         )
         if jsdoc:
             symbol.jsdoc = jsdoc
