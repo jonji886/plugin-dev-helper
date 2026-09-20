@@ -1,0 +1,6 @@
+{
+    "name": "webpack-react-ts",
+    "version": "1.0.0",
+    "frame": "page.html",
+    "main": "main.js"
+}

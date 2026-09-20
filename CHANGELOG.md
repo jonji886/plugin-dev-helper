@@ -7,6 +7,34 @@
 ## [Unreleased]
 
 ### Added
+- 新增 MCP 工具级黄金评测集 `benchmark/mcp_golden.json`（58 条用例，覆盖 8 个工具的 happy_path / not_found / boundary / degradation / unsupported / error_safety）与执行器 `scripts/run_mcp_eval.py`：输出 Contract Pass Rate、Status Accuracy、Determinism Rate（同参重复调用比对，剔除 `request_id`/`duration_ms`）、Not-Found Precision、Task Symbol Coverage 与分工具 P50/P95，并按 `benchmark/mcp_gate.json` 判定 GATE
+- 新增 Agent 调用轨迹评分器 `scripts/check_agent_trace.py`，首次真正消费 `tasks.json` 中的 `mcp_tools_expected` 与 `reference_symbols`：输出工具选择 P/R/F1、符号覆盖率、冗余调用率、序列合规（constraints 先于 scaffold、get_api/get_type 先于 validate_api_usage）与拒答正确性；`--self-test` 用明确标注的合成轨迹验证评分器自身
+- 新增 10 个 benchmark 参考解 `benchmark/solutions/T01..T10/vm.ts` 与轨迹落盘规范 `benchmark/traces/README.md`
+- 新增 MCP 多轮调用序列评测 `benchmark/mcp_sequences.json`（6 条链路）与执行器 `scripts/run_mcp_sequences.py`：入参支持 `{{steps.N.path}}` 占位符引用前序步骤返回，输出 Sequence Pass Rate、Step Pass Rate 与 Cross-Step Reference Rate
+- 新增多次调用稳定性验收 `scripts/check_mcp_stability.py`：串行多轮 + 并发、成功率、跨轮次幂等、P50/P95/P99 与漂移、故障注入后的恢复、状态泄漏、request_id 唯一性与遥测落库一致性；默认写临时 SQLite，不污染生产 telemetry
+- `MetricsStore.mcp_metrics()` 新增每工具 `p50/p95/p99_duration_ms` 与 `min/max_duration_ms`（此前只有 `avg_duration_ms`，无法判断延迟漂移），并新增 `tests/test_mcp_metrics.py` 覆盖单样本与多样本场景
+
+### Changed
+- `scripts/check_benchmark_task.py` 支持 `--mode initial|solution|both`：`initial` 校验 fixture 初始态按预期失败（证明 acceptance 非真空），`solution` 写入参考解验收后自动还原；开始尊重此前被忽略的 `acceptance.typecheck` / `acceptance.build` 开关；新增 `--json` 导出结构化结果
+- `benchmark/tasks.json` 新增 `reference_solution` 与 `acceptance.initial_expect_fail` 字段，并在 `meta.field_notes` 中说明各字段由哪个脚本消费
+- CI 在构建知识库后新增两步确定性评测：`scripts/run_mcp_eval.py --repeat 3` 与 `scripts/run_mcp_sequences.py`；`check_mcp_stability.py` 因含时间与漂移阈值、在共享 runner 上易误报，保持手动执行
+
+### Fixed
+- 修复 T08 验收断言 `not_contains:dat` 与 `contains:data` 自相矛盾（`data` 含子串 `dat`，任何正确解都必然失败），改为 `not_contains:dat:`
+- 修复 T09 验收断言 `not_contains:IDP.Miniapp.closeMiniapp` 与 `expected_behavior` 冲突（需求允许用注释说明，但注释中出现该符号名即判失败），改为 `not_contains:IDP.Miniapp.closeMiniapp(`，只拦截真实调用
+- `run_mcp_eval.py` 在评测前预热 embedding 检索，避免首个 `search_docs` 把本地模型加载时间计入延迟指标
+
+### Removed
+- 删除 `validate_plugin_project` 工具及其底层 `PluginProjectValidator`（`mcp_server/services/kujiale.py`）与 `KujialeDevServerService`（`mcp_server/services/dev_server.py`，仅 `inspect_project` 被前者依赖）；插件工程的静态校验改为由开发者本地自行验证 manifest/frame/main、CORS 与 OPTIONS 预检
+
+### Added
+- `get_plugin_scaffold` 新增 `stack` 参数，支持 `react-ts-webpack` 技术栈（React 17 + TypeScript + Webpack 5 + `@manycore/idp-sdk`），生成与官方 webpack-react-ts 样例一致的 `manifest.json`/`src/main.ts`/`src/view.tsx`/`src/page.html`/`webpack.config.js`/`tsconfig.json`/`package.json`/`README.md`
+- `get_plugin_scaffold` 的 `vanilla` 原生 HTML 骨架替换为与官方 `miniapp-template` 一致的 `page.html`/`page.js`/`vm.js`（本地服务由 `http-server --cors` 提供，移除自建 `dev-server.js`）；开发插件时按用户选择传入 `stack=vanilla`（原生 HTML）或 `react-ts-webpack`（React）
+- 知识库文档（`docs/rag/工具插件代码结构.md`、`data/knowledge/*工具插件代码结构.md`）的 UI 文件命名由 `ui.html` 对齐为 `page.html`，并明确 UI 逻辑脚本 `page.js`（与官方模板一致）；`main` 示例由 `code.js` 对齐为 `vm.js`
+- `dev_server.inspect_project` 识别 `http-server --cors` 等 CORS 能力（含 webpack-dev-server/vite/serve），避免对使用静态服务的 React 栈误报 `KJL-DEV-003`/`KJL-DEV-004`
+- Rule Layer 新增 `KJL-MANIFEST-007`：使用 webpack/vite/rollup 等打包工具时，`main` 必须指向构建产物（如 `build/main.js`），且 `validate_plugin_project`/`probe_plugin_dev_server` 应针对 `build/` 目录而非源码 `src/`；该约束在 `react-ts-webpack` 脚手架中显式透出
+- `demos/webpack-react-ts/` 新增与官方样例一致的真实 golden template（manifest/main/view/webpack 配置齐全），供参考与端到端校验
+- `react-ts-webpack` 脚手架新增 `guidance`：VM 中调用的 IDP API 应先 `get_api` 核实是否存在，否则 `validate_plugin_project` 会对 `main.js` 报 `KJL-API-001`（unknown_api）
 - 新增酷家乐工具插件 Guardrail Rule Layer、`get_plugin_constraints`、`get_plugin_scaffold` 和 `validate_plugin_project`，覆盖 Manifest、UI/VM 运行时、API 使用、Promise 异常与消息 action 匹配，并增加合法/违规 Fixture 与 Buggy Demo
 - 新增 `LLMAdapter`、`OpenAICompatibleAdapter`、`InstrumentedAdapter` 和 `FailoverAdapter`，将 SiliconFlow 与官方 DeepSeek 的客户端、计费、可观测性和瞬时错误故障转移从角色路由中解耦
 - 新增请求级故障转移验收测试，覆盖超时切换、响应路由元数据、token/cost 指标隔离和认证错误失败率；修复 Agent 异常被错误记为成功的问题
@@ -40,6 +68,9 @@
 - 评测入口自动加载 `.env`；答案评分增加 Markdown、API 标识和自然语言变体归一化
 - 正式接入 SiliconFlow OpenAI-compatible API，支持 DeepSeek、千问、GLM 三模型按任务路由并保留显式 profile 覆盖
 - 路由任务类型改由原始用户问题确定，避免 LLM 重写内容或固定提示词导致模型 profile 漂移
+
+### Removed
+- 删除 `probe_plugin_dev_server` 工具及其底层的 `KujialeDevServerService.probe`/`_start_process` 等运行探测代码（含 `npm start` 执行面）。该工具依赖同机本地回环地址，远端 MCP 下不可用；运行期 manifest/frame/main、CORS 与 OPTIONS 预检改由开发者本地自行验证
 
 ### Fixed
 - 修复共享 LLM 客户端累计 token/成本被重复写入单请求指标的问题；增加请求级上下文隔离，并限制 RAG 证据上下文预算，降低长文档请求的延迟与成本放大

@@ -1,0 +1,421 @@
+{
+  "metrics": {
+    "total_sequences": 6,
+    "passed_sequences": 6,
+    "sequence_pass_rate": 1.0,
+    "total_steps": 19,
+    "passed_steps": 19,
+    "step_pass_rate": 1.0,
+    "cross_step_reference_rate": 1.0,
+    "reference_steps": 5,
+    "by_category": {
+      "abstention": {
+        "total": 1,
+        "passed": 1
+      },
+      "dependency_chain": {
+        "total": 1,
+        "passed": 1
+      },
+      "error_repair": {
+        "total": 1,
+        "passed": 1
+      },
+      "insufficient_info": {
+        "total": 1,
+        "passed": 1
+      },
+      "reference_resolution": {
+        "total": 1,
+        "passed": 1
+      },
+      "task_chain": {
+        "total": 1,
+        "passed": 1
+      }
+    }
+  },
+  "gate": {
+    "checks": [
+      {
+        "metric": "sequence_pass_rate",
+        "actual": 1.0,
+        "threshold": 1.0,
+        "passed": true
+      },
+      {
+        "metric": "cross_step_reference_rate",
+        "actual": 1.0,
+        "threshold": 1.0,
+        "passed": true
+      }
+    ],
+    "passed": true
+  },
+  "sequences": [
+    {
+      "id": "SEQ-01",
+      "name": "完整插件开发链路",
+      "category": "task_chain",
+      "description": "先取约束 → 取骨架 → 查通信 API → 校验代码，覆盖 README 推荐的 Agent 链路",
+      "steps": [
+        {
+          "index": 0,
+          "tool": "get_plugin_constraints",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "component": "all"
+          },
+          "uses_reference": false,
+          "reference_resolved": null,
+          "status": "ok",
+          "duration_ms": 82.92
+        },
+        {
+          "index": 1,
+          "tool": "get_plugin_scaffold",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "stack": "vanilla"
+          },
+          "uses_reference": false,
+          "reference_resolved": null,
+          "status": "ok",
+          "duration_ms": 0.14
+        },
+        {
+          "index": 2,
+          "tool": "get_api",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "symbol": "IDP.Miniapp.view.defaultFrame.postMessage"
+          },
+          "uses_reference": false,
+          "reference_resolved": null,
+          "status": "ok",
+          "duration_ms": 31.45
+        },
+        {
+          "index": 3,
+          "tool": "validate_api_usage",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "code": "IDP.Miniapp.view.defaultFrame.postMessage({ action: \"ping\" }, \"*\");"
+          },
+          "uses_reference": false,
+          "reference_resolved": null,
+          "status": "ok",
+          "duration_ms": 1.12
+        }
+      ],
+      "total_steps": 4,
+      "passed_steps": 4,
+      "passed": true,
+      "reference_steps": 0,
+      "reference_ok": 0,
+      "chain": [
+        "get_plugin_constraints",
+        "get_plugin_scaffold",
+        "get_api",
+        "validate_api_usage"
+      ],
+      "total_ms": 115.63
+    },
+    {
+      "id": "SEQ-02",
+      "name": "指代传递：用上一步的关联类型继续查",
+      "category": "reference_resolution",
+      "description": "get_api 返回 related_types 后，直接用它查类型定义，再用上一步的符号构造代码校验",
+      "steps": [
+        {
+          "index": 0,
+          "tool": "get_api",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "symbol": "IDP.Miniapp.uploadDataAsync"
+          },
+          "uses_reference": false,
+          "reference_resolved": null,
+          "status": "ok",
+          "duration_ms": 0.47
+        },
+        {
+          "index": 1,
+          "tool": "get_type",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "name": "MiniappUploadDataOption"
+          },
+          "uses_reference": true,
+          "reference_resolved": true,
+          "status": "ok",
+          "duration_ms": 0.18
+        },
+        {
+          "index": 2,
+          "tool": "validate_api_usage",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "code": "IDP.Miniapp.uploadDataAsync({ miniappId: \"1\", data: \"x\" });"
+          },
+          "uses_reference": true,
+          "reference_resolved": true,
+          "status": "ok",
+          "duration_ms": 0.12
+        }
+      ],
+      "total_steps": 3,
+      "passed_steps": 3,
+      "passed": true,
+      "reference_steps": 2,
+      "reference_ok": 2,
+      "chain": [
+        "get_api",
+        "get_type",
+        "validate_api_usage"
+      ],
+      "total_ms": 0.77
+    },
+    {
+      "id": "SEQ-03",
+      "name": "错误修复链路：查证 → 修正 → 复核",
+      "category": "error_repair",
+      "description": "先自检报错，再确认错误 API 不存在，然后查到正确 API，最后用同一符号复核",
+      "steps": [
+        {
+          "index": 0,
+          "tool": "validate_api_usage",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "code": "IDP.Miniapp.exitMiniapp();"
+          },
+          "uses_reference": false,
+          "reference_resolved": null,
+          "status": "invalid",
+          "duration_ms": 1.02
+        },
+        {
+          "index": 1,
+          "tool": "get_api",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "symbol": "IDP.Miniapp.exitMiniapp"
+          },
+          "uses_reference": false,
+          "reference_resolved": null,
+          "status": "not_found",
+          "duration_ms": 3.28
+        },
+        {
+          "index": 2,
+          "tool": "get_api",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "symbol": "IDP.Miniapp.exit"
+          },
+          "uses_reference": false,
+          "reference_resolved": null,
+          "status": "ok",
+          "duration_ms": 0.18
+        },
+        {
+          "index": 3,
+          "tool": "validate_api_usage",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "code": "IDP.Miniapp.exit();"
+          },
+          "uses_reference": true,
+          "reference_resolved": true,
+          "status": "ok",
+          "duration_ms": 0.04
+        }
+      ],
+      "total_steps": 4,
+      "passed_steps": 4,
+      "passed": true,
+      "reference_steps": 1,
+      "reference_ok": 1,
+      "chain": [
+        "validate_api_usage",
+        "get_api",
+        "get_api",
+        "validate_api_usage"
+      ],
+      "total_ms": 4.52
+    },
+    {
+      "id": "SEQ-04",
+      "name": "信息不足先查类型再构造参数",
+      "category": "insufficient_info",
+      "description": "需求模糊时先查 API 定义与选项类型，再构造合法参数并自检",
+      "steps": [
+        {
+          "index": 0,
+          "tool": "get_api",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "symbol": "IDP.Miniapp.view.setContainerOptions"
+          },
+          "uses_reference": false,
+          "reference_resolved": null,
+          "status": "ok",
+          "duration_ms": 1.24
+        },
+        {
+          "index": 1,
+          "tool": "get_type",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "name": "MainMountPointOptions"
+          },
+          "uses_reference": false,
+          "reference_resolved": null,
+          "status": "ok",
+          "duration_ms": 0.28
+        },
+        {
+          "index": 2,
+          "tool": "validate_api_usage",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "code": "IDP.Miniapp.view.setContainerOptions(IDP.Miniapp.view.defaultFrame, { minimizable: true });"
+          },
+          "uses_reference": false,
+          "reference_resolved": null,
+          "status": "ok",
+          "duration_ms": 1.55
+        }
+      ],
+      "total_steps": 3,
+      "passed_steps": 3,
+      "passed": true,
+      "reference_steps": 0,
+      "reference_ok": 0,
+      "chain": [
+        "get_api",
+        "get_type",
+        "validate_api_usage"
+      ],
+      "total_ms": 3.07
+    },
+    {
+      "id": "SEQ-05",
+      "name": "拒答链路：确认不存在 → 检索最接近的真实 API",
+      "category": "abstention",
+      "description": "不存在的 API 必须明确 not_found，随后用检索找最接近的真实 API，且不得回到编造的符号",
+      "steps": [
+        {
+          "index": 0,
+          "tool": "get_api",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "symbol": "IDP.Miniapp.closeMiniapp"
+          },
+          "uses_reference": false,
+          "reference_resolved": null,
+          "status": "not_found",
+          "duration_ms": 3.17
+        },
+        {
+          "index": 1,
+          "tool": "search_docs",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "query": "退出小程序",
+            "top_k": 3
+          },
+          "uses_reference": false,
+          "reference_resolved": null,
+          "status": "ok",
+          "duration_ms": 4484.62
+        },
+        {
+          "index": 2,
+          "tool": "get_api",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "symbol": "IDP.Miniapp.exit"
+          },
+          "uses_reference": true,
+          "reference_resolved": true,
+          "status": "ok",
+          "duration_ms": 0.02
+        }
+      ],
+      "total_steps": 3,
+      "passed_steps": 3,
+      "passed": true,
+      "reference_steps": 1,
+      "reference_ok": 1,
+      "chain": [
+        "get_api",
+        "search_docs",
+        "get_api"
+      ],
+      "total_ms": 4487.81
+    },
+    {
+      "id": "SEQ-06",
+      "name": "依赖展开链：关联符号 → 类型定义",
+      "category": "dependency_chain",
+      "description": "从依赖图拿到关联符号后，直接展开其类型定义",
+      "steps": [
+        {
+          "index": 0,
+          "tool": "get_related_symbols",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "symbol": "IDP.Miniapp.uploadDataAsync",
+            "depth": 1
+          },
+          "uses_reference": false,
+          "reference_resolved": null,
+          "status": "ok",
+          "duration_ms": 0.14
+        },
+        {
+          "index": 1,
+          "tool": "get_type",
+          "passed": true,
+          "failures": [],
+          "arguments": {
+            "name": "MiniappUploadDataOption"
+          },
+          "uses_reference": true,
+          "reference_resolved": true,
+          "status": "ok",
+          "duration_ms": 0.02
+        }
+      ],
+      "total_steps": 2,
+      "passed_steps": 2,
+      "passed": true,
+      "reference_steps": 1,
+      "reference_ok": 1,
+      "chain": [
+        "get_related_symbols",
+        "get_type"
+      ],
+      "total_ms": 0.16
+    }
+  ]
+}

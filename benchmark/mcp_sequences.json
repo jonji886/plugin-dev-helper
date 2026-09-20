@@ -1,0 +1,188 @@
+{
+  "meta": {
+    "version": "0.1.0",
+    "description": "MCP 多轮调用序列评测集。工具级黄金评测只验证单次调用；本集验证「上一步的返回能否正确驱动下一步」，即跨步骤引用（指代）与链路完整性。不需要 LLM，可进 CI。",
+    "runner": "python scripts/run_mcp_sequences.py",
+    "placeholder": "步骤入参中可写 {{steps.<序号>.<点号路径>}}，引用前面步骤返回的字段；路径规则与 mcp_golden.json 一致（支持 list 下标与 [*] 展开）。占位符解析失败即该步骤失败。",
+    "scope_note": "这里覆盖的是 MCP 侧的指代：「用上一步拿到的符号 / 候选 / 关联类型继续查询」。Agent 侧的指代消解（用户说「这个 API」时 Agent 能否还原成完整符号）无法在 MCP 层验证，需由 benchmark/traces 的真实轨迹 + check_agent_trace.py 覆盖。",
+    "assertion_schema": "与 benchmark/mcp_golden.json 完全一致（status / equals / truthy / falsy / min_len / max_len / contains_any / contains_all / all_equal / all_in / contains / not_contains / source_lines_valid / citation_complete）"
+  },
+  "sequences": [
+    {
+      "id": "SEQ-01",
+      "name": "完整插件开发链路",
+      "category": "task_chain",
+      "description": "先取约束 → 取骨架 → 查通信 API → 校验代码，覆盖 README 推荐的 Agent 链路",
+      "steps": [
+        {
+          "tool": "get_plugin_constraints",
+          "arguments": {"component": "all"},
+          "expect": {"status": "ok", "min_len": {"data.constraints": 1}}
+        },
+        {
+          "tool": "get_plugin_scaffold",
+          "arguments": {"stack": "vanilla"},
+          "expect": {"status": "ok", "truthy": ["data.files"]}
+        },
+        {
+          "tool": "get_api",
+          "arguments": {"symbol": "IDP.Miniapp.view.defaultFrame.postMessage"},
+          "expect": {"status": "ok", "equals": {"found": true, "match_type": "path"}}
+        },
+        {
+          "tool": "validate_api_usage",
+          "arguments": {"code": "IDP.Miniapp.view.defaultFrame.postMessage({ action: \"ping\" }, \"*\");"},
+          "expect": {"status": "ok", "equals": {"valid": true}}
+        }
+      ]
+    },
+    {
+      "id": "SEQ-02",
+      "name": "指代传递：用上一步的关联类型继续查",
+      "category": "reference_resolution",
+      "description": "get_api 返回 related_types 后，直接用它查类型定义，再用上一步的符号构造代码校验",
+      "steps": [
+        {
+          "tool": "get_api",
+          "arguments": {"symbol": "IDP.Miniapp.uploadDataAsync"},
+          "expect": {
+            "status": "ok",
+            "contains_any": {"related_types": ["MiniappUploadDataOption"]}
+          }
+        },
+        {
+          "tool": "get_type",
+          "arguments": {"name": "{{steps.0.related_types.0}}"},
+          "expect": {
+            "status": "ok",
+            "equals": {"found": true, "name": "MiniappUploadDataOption"},
+            "contains_all": {"fields[*].name": ["miniappId", "data"]}
+          }
+        },
+        {
+          "tool": "validate_api_usage",
+          "arguments": {"code": "{{steps.0.symbol}}({ miniappId: \"1\", data: \"x\" });"},
+          "expect": {"status": "ok", "equals": {"valid": true, "issue_count": 0}}
+        }
+      ]
+    },
+    {
+      "id": "SEQ-03",
+      "name": "错误修复链路：查证 → 修正 → 复核",
+      "category": "error_repair",
+      "description": "先自检报错，再确认错误 API 不存在，然后查到正确 API，最后用同一符号复核",
+      "steps": [
+        {
+          "tool": "validate_api_usage",
+          "arguments": {"code": "IDP.Miniapp.exitMiniapp();"},
+          "expect": {
+            "status": "invalid",
+            "contains_any": {"issues[*].type": ["unknown_api"]}
+          }
+        },
+        {
+          "tool": "get_api",
+          "arguments": {"symbol": "IDP.Miniapp.exitMiniapp"},
+          "expect": {
+            "status": "not_found",
+            "equals": {"found": false},
+            "falsy": ["signature"]
+          }
+        },
+        {
+          "tool": "get_api",
+          "arguments": {"symbol": "IDP.Miniapp.exit"},
+          "expect": {"status": "ok", "equals": {"found": true, "symbol": "IDP.Miniapp.exit"}}
+        },
+        {
+          "tool": "validate_api_usage",
+          "arguments": {"code": "{{steps.2.symbol}}();"},
+          "expect": {"status": "ok", "equals": {"valid": true}}
+        }
+      ]
+    },
+    {
+      "id": "SEQ-04",
+      "name": "信息不足先查类型再构造参数",
+      "category": "insufficient_info",
+      "description": "需求模糊时先查 API 定义与选项类型，再构造合法参数并自检",
+      "steps": [
+        {
+          "tool": "get_api",
+          "arguments": {"symbol": "IDP.Miniapp.view.setContainerOptions"},
+          "expect": {"status": "ok", "equals": {"found": true}}
+        },
+        {
+          "tool": "get_type",
+          "arguments": {"name": "MainMountPointOptions"},
+          "expect": {
+            "status": "ok",
+            "contains_all": {"fields[*].name": ["windowMode", "minimizable"]}
+          }
+        },
+        {
+          "tool": "validate_api_usage",
+          "arguments": {
+            "code": "IDP.Miniapp.view.setContainerOptions(IDP.Miniapp.view.defaultFrame, { minimizable: true });"
+          },
+          "expect": {"status": "ok", "equals": {"valid": true}}
+        }
+      ]
+    },
+    {
+      "id": "SEQ-05",
+      "name": "拒答链路：确认不存在 → 检索最接近的真实 API",
+      "category": "abstention",
+      "description": "不存在的 API 必须明确 not_found，随后用检索找最接近的真实 API，且不得回到编造的符号",
+      "steps": [
+        {
+          "tool": "get_api",
+          "arguments": {"symbol": "IDP.Miniapp.closeMiniapp"},
+          "expect": {
+            "status": "not_found",
+            "equals": {"found": false},
+            "min_len": {"candidate_symbols": 1}
+          }
+        },
+        {
+          "tool": "search_docs",
+          "arguments": {"query": "退出小程序", "top_k": 3},
+          "expect": {"status": "ok", "min_len": {"results": 1}, "citation_complete": true}
+        },
+        {
+          "tool": "get_api",
+          "arguments": {"symbol": "{{steps.1.results.0.symbol}}"},
+          "expect": {
+            "status": "ok",
+            "equals": {"found": true},
+            "not_contains": {"symbol": "closeMiniapp"}
+          }
+        }
+      ]
+    },
+    {
+      "id": "SEQ-06",
+      "name": "依赖展开链：关联符号 → 类型定义",
+      "category": "dependency_chain",
+      "description": "从依赖图拿到关联符号后，直接展开其类型定义",
+      "steps": [
+        {
+          "tool": "get_related_symbols",
+          "arguments": {"symbol": "IDP.Miniapp.uploadDataAsync", "depth": 1},
+          "expect": {
+            "status": "ok",
+            "contains_all": {"related_symbols": ["MiniappUploadDataOption"]}
+          }
+        },
+        {
+          "tool": "get_type",
+          "arguments": {"name": "{{steps.0.related_symbols.0}}"},
+          "expect": {
+            "status": "ok",
+            "equals": {"found": true, "name": "MiniappUploadDataOption", "kind": "interface"}
+          }
+        }
+      ]
+    }
+  ]
+}

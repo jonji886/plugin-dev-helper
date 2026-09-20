@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+</head>
+
+<body>
+    <h3>演示1：调用获取当前账号信息接口</h3>
+    <button onclick="getUserName()">getUserName</button>
+    <div id="result1">...</div>
+    </br>
+    <hr size="10" color="black">
+    <h3>演示2：小程序UI线程和VM线程的数据通信</h3>
+    <input type="text" id="thing" placeholder="输入任意信息" />
+    <button onclick="send()">send</button>
+    <div id="result2">...</div>
+    <!-- <button onclick="getDesignId()">getDesignId</button> -->
+
+    </br>
+    <hr size="10" color="black">
+    <h3>演示3：小程序iframe窗口设置 </h3>
+    <button onclick="resize() ">修改小程序iframe尺寸为600X600</button>
+    <button onclick="position()">修改小程序iframe左上角的位置坐标为{x:0,y:0}</button>
+    <button onclick="modal()">修改小程序iframe为模态框显示(居中显示,存在遮罩)</button>
+    <button onclick="fullscreen()">修改小程序iframe尺寸为全屏</button>
+
+</body>
+<script src="page.js"></script>
+
+</html>

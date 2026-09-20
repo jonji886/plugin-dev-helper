@@ -1,4 +1,4 @@
-"""酷家乐工具插件 Guardrail 的 Rule、Validator 和 MCP Tool 测试。"""
+"""酷家乐工具插件 Guardrail 的 Rule 与 MCP Tool 测试。"""
 
 from __future__ import annotations
 
@@ -26,9 +26,12 @@ class KujialeGuardrailTests(unittest.TestCase):
         rule_ids = {rule.id for rule in engine.rules()}
         self.assertTrue({
             "KJL-MANIFEST-001", "KJL-MANIFEST-002", "KJL-MANIFEST-003",
+            "KJL-MANIFEST-007",
             "KJL-UI-001", "KJL-VM-001", "KJL-VM-002", "KJL-VM-003",
             "KJL-VM-004", "KJL-VM-005", "KJL-VM-006",
             "KJL-COMM-001", "KJL-COMM-002", "KJL-COMM-003",
+            "KJL-DEV-001", "KJL-DEV-002", "KJL-DEV-003", "KJL-DEV-004",
+            "KJL-DEV-005", "KJL-DEV-006", "KJL-NET-001", "KJL-NET-002",
         } <= rule_ids)
         vm_rules = engine.query("vm", "VM 调用 API", limit=20)
         self.assertTrue(vm_rules)
@@ -51,53 +54,6 @@ class KujialeGuardrailTests(unittest.TestCase):
         shutil.copytree(FIXTURES / name, destination)
         return destination
 
-    def test_valid_plugin_has_no_findings_and_full_score(self):
-        result = self.container.plugin_validator.validate(self.copy_fixture("valid_plugin"))
-        self.assertTrue(result["passed"], result["findings"])
-        self.assertTrue(result["valid"])
-        self.assertEqual(result["score"], 100)
-        self.assertEqual(result["summary"], {"critical": 0, "high": 0, "medium": 0, "low": 0})
-
-    def test_manifest_checks_cover_missing_invalid_and_entry_files(self):
-        project = self.root / "manifest_errors"
-        project.mkdir()
-        result = self.container.plugin_validator.validate(project)
-        self.assertEqual(result["findings"][0]["rule_id"], "KJL-MANIFEST-001")
-        self.assertIn("manifest.json", result["findings"][0]["file"])
-
-        (project / "manifest.json").write_text("{not-json", encoding="utf-8")
-        result = self.container.plugin_validator.validate(project)
-        self.assertEqual(result["findings"][0]["rule_id"], "KJL-MANIFEST-004")
-        self.assertGreaterEqual(result["findings"][0]["line"], 1)
-
-        (project / "manifest.json").write_text(json.dumps({
-            "name": "x", "version": "1", "frame": "missing.txt", "main": "missing.ts"
-        }), encoding="utf-8")
-        result = self.container.plugin_validator.validate(project)
-        ids = {finding["rule_id"] for finding in result["findings"]}
-        self.assertIn("KJL-MANIFEST-002", ids)
-        self.assertIn("KJL-MANIFEST-003", ids)
-
-    def test_ui_vm_runtime_rules_return_location_risk_suggestion_and_confidence(self):
-        result = self.container.plugin_validator.validate(self.copy_fixture("invalid_vm_dom"))
-        ids = {finding["rule_id"] for finding in result["findings"]}
-        self.assertTrue({"KJL-VM-001", "KJL-VM-002", "KJL-VM-003", "KJL-VM-004", "KJL-VM-005", "KJL-VM-006"} <= ids)
-        finding = next(item for item in result["findings"] if item["rule_id"] == "KJL-VM-002")
-        self.assertEqual(finding["file"], "vm.js")
-        self.assertGreaterEqual(finding["line"], 1)
-        self.assertTrue(finding["risk"])
-        self.assertTrue(finding["suggestion"])
-        self.assertIn(finding["confidence"], {"high", "medium", "low"})
-
-        ui_result = self.container.plugin_validator.validate(self.copy_fixture("invalid_ui_api"))
-        self.assertIn("KJL-UI-001", {item["rule_id"] for item in ui_result["findings"]})
-
-    def test_communication_detects_both_directions_action_mismatch(self):
-        result = self.container.plugin_validator.validate(self.copy_fixture("broken_message_flow"))
-        findings = [item for item in result["findings"] if item["rule_id"] == "KJL-COMM-003"]
-        self.assertGreaterEqual(len(findings), 2)
-        self.assertTrue(all(item["details"].get("action") for item in findings))
-
     def test_constraint_and_scaffold_tools_are_real_mcp_tools(self):
         async def invoke():
             constraints = await self.mcp.call_tool("get_plugin_constraints", {
@@ -117,19 +73,73 @@ class KujialeGuardrailTests(unittest.TestCase):
         self.assertTrue(any(item["rule_id"] == "KJL-VM-001" for item in constraints["data"]["constraints"]))
         self.assertTrue(scaffold["success"])
         files = scaffold["data"]["files"]
-        self.assertEqual(set(files), {"manifest.json", "ui.html", "vm.js"})
-        self.assertEqual(json.loads(files["manifest.json"])["frame"], "ui.html")
+        self.assertEqual(
+            set(files),
+            {"manifest.json", "page.html", "page.js", "vm.js", "package.json", "README.md"},
+        )
+        self.assertEqual(json.loads(files["manifest.json"])["frame"], "page.html")
+        self.assertEqual(json.loads(files["manifest.json"])["main"], "vm.js")
+        self.assertEqual(json.loads(files["package.json"])["scripts"]["start"], "http-server --cors -c-1")
+        self.assertIn("window.parent.postMessage", files["page.js"])
+        self.assertIn("defaultFrame.onMessageReceive", files["vm.js"])
+        # 原生 HTML 模板使用 http-server 提供 CORS，不再自带 dev-server.js
+        self.assertNotIn("dev-server.js", files)
+        # 应提示先用 get_api 核实 IDP API 是否存在（避免 KJL-API-001）
+        self.assertIn("guidance", scaffold["data"])
+        joined_guidance = "".join(scaffold["data"]["guidance"])
+        self.assertIn("get_api", joined_guidance)
+        self.assertIn("KJL-API-001", joined_guidance)
 
-    def test_validate_plugin_project_tool_scans_fixture(self):
-        async def invoke():
-            result = await self.mcp.call_tool("validate_plugin_project", {
-                "platform": "kujiale", "path": str(self.copy_fixture("invalid_manifest"))
-            })
-            return result[1] if isinstance(result, tuple) else json.loads(result[0].text)
+    def test_scaffold_react_ts_webpack_stack_generates_expected_files(self):
+        result = self.container.scaffold.build("获取方案信息", stack="react-ts-webpack")
+        self.assertEqual(result["stack"], "react-ts-webpack")
+        files = result["files"]
+        self.assertEqual(
+            set(files),
+            {
+                "manifest.json", "src/main.ts", "src/view.tsx", "src/page.html",
+                "webpack.config.js", "tsconfig.json", "package.json", "README.md",
+            },
+        )
+        manifest = json.loads(files["manifest.json"])
+        self.assertEqual(manifest["frame"], "page.html")
+        self.assertEqual(manifest["main"], "main.js")
+        self.assertIn("window.parent.postMessage", files["src/view.tsx"])
+        self.assertIn("defaultFrame.onMessageReceive", files["src/main.ts"])
+        self.assertIn("ReactDOM.render", files["src/view.tsx"])
+        pkg = json.loads(files["package.json"])
+        self.assertIn("--cors", pkg["scripts"]["start"])
+        self.assertEqual(pkg["dependencies"]["react"], "^17.0.2")
+        self.assertEqual(pkg["devDependencies"]["@manycore/idp-sdk"], "^1.0.1")
+        # 打包类插件的构建产物约束必须显式出现
+        constraint_ids = {item["rule_id"] for item in result["constraints"]}
+        self.assertIn("KJL-MANIFEST-007", constraint_ids)
+        # 应提示先用 get_api 核实 IDP API 是否存在（避免 KJL-API-001）
+        self.assertIn("guidance", result)
+        joined_guidance = "".join(result["guidance"])
+        self.assertIn("get_api", joined_guidance)
+        self.assertIn("KJL-API-001", joined_guidance)
 
-        payload = run(invoke())
-        self.assertTrue(payload["success"])
-        self.assertEqual(payload["data"]["findings"][0]["rule_id"], "KJL-MANIFEST-004")
+    def test_native_html_golden_template_matches_vanilla_scaffold(self):
+        demo = PROJECT_ROOT / "demos" / "native-html"
+        self.assertTrue(demo.is_dir(), "缺少 demos/native-html golden template")
+        required = {"manifest.json", "page.html", "page.js", "vm.js", "package.json", "README.md"}
+        self.assertEqual(required, set(p.name for p in demo.iterdir() if p.is_file()))
+        manifest = json.loads((demo / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["frame"], "page.html")
+        self.assertEqual(manifest["main"], "vm.js")
+        pkg = json.loads((demo / "package.json").read_text(encoding="utf-8"))
+        self.assertIn("--cors", pkg["scripts"]["start"])
+        self.assertIn("@manycore/idp-sdk", pkg.get("devDependencies", {}))
+        # golden template 应能被 vanilla 脚手架产物一致地复现
+        result = self.container.scaffold.build("获取方案信息", stack="vanilla")
+        for name in required:
+            self.assertIn(name, result["files"])
+
+    def test_scaffold_unsupported_stack_is_rejected(self):
+        result = self.container.scaffold.build(task="x", stack="vue-ts")
+        self.assertFalse(result["success"])
+        self.assertEqual(result["status"], "unsupported_stack")
 
 
 if __name__ == "__main__":

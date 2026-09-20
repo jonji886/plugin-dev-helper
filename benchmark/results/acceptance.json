@@ -1,0 +1,145 @@
+{
+  "mode": "both",
+  "results": [
+    {
+      "id": "T01",
+      "title": "查找并调用基础 API（退出小程序）",
+      "category": "api_lookup",
+      "initial": {
+        "passed": false,
+        "non_vacuous": true
+      },
+      "solution": {
+        "passed": true,
+        "missing": false
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "T02",
+      "title": "按类型构造参数（上传临时数据）",
+      "category": "type_construction",
+      "initial": {
+        "passed": false,
+        "non_vacuous": true
+      },
+      "solution": {
+        "passed": true,
+        "missing": false
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "T03",
+      "title": "使用相关 Type/Enum（判断工具类型）",
+      "category": "enum_usage",
+      "initial": {
+        "passed": false,
+        "non_vacuous": true
+      },
+      "solution": {
+        "passed": true,
+        "missing": false
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "T04",
+      "title": "UI/VM 通信：向 UI 发送消息",
+      "category": "ui_vm_comm",
+      "initial": {
+        "passed": false,
+        "non_vacuous": true
+      },
+      "solution": {
+        "passed": true,
+        "missing": false
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "T05",
+      "title": "事件监听：监听 UI 消息",
+      "category": "event_listening",
+      "initial": {
+        "passed": false,
+        "non_vacuous": true
+      },
+      "solution": {
+        "passed": true,
+        "missing": false
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "T06",
+      "title": "修改已有插件代码（设置窗口选项）",
+      "category": "modify_existing",
+      "initial": {
+        "passed": false,
+        "non_vacuous": true
+      },
+      "solution": {
+        "passed": true,
+        "missing": false
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "T07",
+      "title": "修复错误 API 名称",
+      "category": "fix_wrong_api",
+      "initial": {
+        "passed": false,
+        "non_vacuous": true
+      },
+      "solution": {
+        "passed": true,
+        "missing": false
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "T08",
+      "title": "修复错误参数名",
+      "category": "fix_wrong_params",
+      "initial": {
+        "passed": false,
+        "non_vacuous": true
+      },
+      "solution": {
+        "passed": true,
+        "missing": false
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "T09",
+      "title": "处理不存在的 API（拒绝编造）",
+      "category": "reject_hallucination",
+      "initial": {
+        "passed": true,
+        "non_vacuous": null
+      },
+      "solution": {
+        "passed": true,
+        "missing": false
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "T10",
+      "title": "信息不足时先查询确认参数",
+      "category": "insufficient_info",
+      "initial": {
+        "passed": false,
+        "non_vacuous": true
+      },
+      "solution": {
+        "passed": true,
+        "missing": false
+      },
+      "verdict": "PASS"
+    }
+  ]
+}

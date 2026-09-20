@@ -17,7 +17,7 @@ def register(mcp, container) -> None:
     )
     async def get_plugin_constraints(
         platform: Annotated[str, Field(description="平台，目前仅支持 kujiale", min_length=1, max_length=40)] = "kujiale",
-        component: Annotated[str, Field(description="组件：all / manifest / ui / vm / communication / api")] = "all",
+        component: Annotated[str, Field(description="组件：all / manifest / ui / vm / communication / api / dev_server / network")] = "all",
         task: Annotated[str, Field(description="当前插件任务，用于筛选相关约束", max_length=500)] = "",
     ) -> dict[str, Any]:
         def build() -> dict[str, Any]:

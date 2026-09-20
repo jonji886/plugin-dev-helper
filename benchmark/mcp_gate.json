@@ -1,0 +1,10 @@
+{
+  "_comment": "MCP 工具级评测门禁阈值。契约类指标要求 100%，因为工具返回结构是 Agent 唯一可依赖的事实来源；幂等性允许 1% 抖动；符号覆盖要求 100%，否则对应 benchmark 任务对 Agent 不可解。",
+  "contract_pass_rate": 1.0,
+  "status_accuracy": 1.0,
+  "determinism_rate": 0.99,
+  "not_found_precision": 1.0,
+  "task_symbol_coverage": 1.0,
+  "sequence_pass_rate": 1.0,
+  "cross_step_reference_rate": 1.0
+}

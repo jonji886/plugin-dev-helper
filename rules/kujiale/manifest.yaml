@@ -94,3 +94,30 @@ rules:
     references: [kujiale_plugin_runtime]
     keywords: [manifest, 路径, frame, main]
     score_category: structure
+
+  - id: KJL-MANIFEST-007
+    platform: kujiale
+    category: manifest
+    scope: manifest
+    severity: medium
+    title: 使用打包工具时 main 必须指向构建产物，校验应针对 build 目录
+    description: >-
+      当插件使用 webpack / vite / rollup 等打包工具时，manifest.main 不应指向源码
+      TS/TSX/JSX，而必须指向打包后的 JavaScript 产物（例如 build/main.js）。
+      frame 若同样由打包生成，也应指向 build/ 下的产物。本地开发或发布校验时，
+      应当对打包输出目录（通常是 build/）进行验证，而不是源码目录（src/）；
+      源码目录下的 main.js/view.js 尚未生成，直接验证会误报 KJL-MANIFEST-003。
+    detection:
+      type: bundler_build_artifact
+      bundler_configs: [webpack.config.js, vite.config.ts, vite.config.js, rollup.config.js]
+      build_dir_hint: build
+    confidence: high
+    suggestion: >-
+      先 npm run build 生成 build/，再对 build/ 目录校验；确保 manifest.frame/main
+      指向 build/ 下真实存在的文件。使用 get_plugin_scaffold(stack=react-ts-webpack)
+      可直接获得该结构。
+    references: [kujiale_plugin_runtime, get_plugin_scaffold]
+    keywords: [webpack, vite, rollup, 打包, 构建产物, build, main.js]
+    required_patterns: [webpack, vite, rollup]
+    score_category: structure
+

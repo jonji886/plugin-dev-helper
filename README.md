@@ -285,7 +285,10 @@ VISION=Qwen/Qwen3-VL-32B-Instruct
 - 当前模型路由仍是应用层规则路由；Prompt A/B 评测阶段使用确定性分类以隔离 Router 网络波动。
 - Feedback 晋升回归集前需要人工 Review，系统不会自动把负反馈当成标准答案。
 - `estimated_cost` 是基于公开价格配置的估算值，不等同于账户最终账单；不同货币的历史模型配置不可直接横向相加。
-- 当前 Golden Dataset 为 24 条，足以做回归门禁，但不能代表完整生产分布。
+- 当前 Chat 链路 Golden Dataset 为 24 条，足以做回归门禁，但不能代表完整生产分布。
+- MCP 工具级评测（`benchmark/mcp_golden.json`，58 条）与多轮序列评测（`mcp_sequences.json`，6 条）覆盖工具契约、边界与跨步骤引用，但不评估「Agent 是否会正确选用工具」；后者必须由真实 Agent 轨迹驱动 `check_agent_trace.py`，目前尚无实测数据。
+- `check_mcp_stability.py` 的门禁含时间与漂移阈值，未纳入 CI（共享 runner 调度抖动会误报），仅在发布前或配置变更后手动执行。
+- `benchmark/` 的「无 MCP vs 有 MCP」对比至今未执行，`results/comparison.md` 中该两列仍为 N/A；参考解仅用于证明任务可解，不能冒充 Agent 结果。
 - SiliconFlow 中转的长响应可能出现偶发长等待；应用已限制 Router 预算并限制答案上下文，但 Main/Reason/Vision 的最终可用性仍取决于上游超时和重试配置。
 - Langfuse 是可选依赖；未开启或远端不可用时只能查看本地 SQLite 指标，不能查看远程 Trace。
 
@@ -363,12 +366,13 @@ MCP 客户端配置示例：
 | `get_examples` | 从 docs/rag 与知识库返回官方代码示例（只返回真实片段，不临时生成冒充官方） |
 | `validate_api_usage` | 静态校验代码里的 API 用法（不存在 API、错误 namespace/参数名、缺必填、SDK 版本不一致） |
 | `get_plugin_constraints` | 按平台组件和任务返回酷家乐工具插件的结构化约束，Critical/High 优先 |
-| `get_plugin_scaffold` | 返回最小 `manifest.json`、`ui.html`、`vm.js` 骨架和 UI/VM 职责边界 |
-| `validate_plugin_project` | 扫描插件 Manifest、UI、VM 和消息 action，返回评分与可定位 Finding |
+| `get_plugin_scaffold` | 按 `stack` 返回最小合法骨架与 UI/VM 职责边界：`vanilla`（原生 HTML，返回 `manifest.json`/`page.html`/`page.js`/`vm.js`/`package.json` + http-server）或 `react-ts-webpack`（React 17 + TS + Webpack 5） |
 
 ### Kujiale Plugin Guardrails
 
 酷家乐工具插件不是普通 Web 项目：UI 运行在 iframe 中，负责 DOM、用户交互和网络请求；VM 负责调用 `IDP` 插件 API，但不能依赖 DOM、浏览器网络请求或定时器。UI 与 VM 之间应通过 `window.parent.postMessage` 和 `defaultFrame.postMessage` 通信。
+
+本地开发工程还必须能通过 `npm start` 启动 HTTP Server。服务需要提供 `manifest.json`、`manifest.frame` 指向的 HTML 和 `manifest.main` 指向的 VM JavaScript，并处理浏览器跨域访问与 `OPTIONS` 预检。MCP 不长期托管插件资源，只通过脚手架生成服务并静态校验工程配置。
 
 这些强约束维护在 [`rules/kujiale/`](rules/kujiale) 的结构化 Rule Layer 中。Knowledge 继续负责 API 文档、参数、示例和教程；Rule Layer 负责“必须 / 禁止 / 只能”等可验证约束。`AGENTS.md` 只规定调用时机，不复制平台规则。
 
@@ -379,22 +383,38 @@ MCP 客户端配置示例：
   → get_plugin_constraints
   → get_plugin_scaffold（需要时）
   → 查询 API / 文档并生成代码
-  → validate_plugin_project
-  → 修复 Critical / High Finding
-  → 再次 validate_plugin_project
+  → 按约束修复 Critical / High 问题
+  → npm start
 ```
 
-`validate_plugin_project` 当前只扫描酷家乐工具插件的 `manifest.json`、HTML UI 和 JavaScript VM。返回结果包含 `score`、按严重级别汇总，以及 `rule_id`、文件、行号、风险、修改建议和 `confidence`。`Critical` Finding 会使结果不能通过；启发式检查会降低 confidence，避免把不确定的语义问题伪装成确定错误。
+声明可运行前，请自行用浏览器或 HTTP 客户端验证本地 HTTP Server 的 manifest/frame/main、CORS 与 OPTIONS 预检。
 
-可直接扫描故意包含违规的 [`demos/buggy_kujiale_plugin/`](demos/buggy_kujiale_plugin)。规则来自当前项目维护的插件开发知识和约束；本项目属于个人技术 POC，不代表酷家乐官方规范的完整或永久版本。
+插件工程的静态扫描工具（`validate_plugin_project`）已移除，相关 Guardrail 约束仍可通过 `get_plugin_constraints` 获取。运行期 manifest/frame/main、CORS 与 OPTIONS 预检需由开发者在本地启动服务后用浏览器或 HTTP 客户端自行验证。
+
+[`demos/buggy_kujiale_plugin/`](demos/buggy_kujiale_plugin) 故意包含违反 Guardrail 的写法，可供对照 `get_plugin_constraints` 返回的规则学习。规则来自当前项目维护的插件开发知识和约束；本项目属于个人技术 POC，不代表酷家乐官方规范的完整或永久版本。
 
 远程部署复用 [`deploy/docker-compose.yml`](deploy/docker-compose.yml) 的 `mcp` 服务（镜像 [`deploy/Dockerfile.mcp`](deploy/Dockerfile.mcp)），用 `MCP_HOST_PORT` 指定宿主机端口。
 
 > MCP SDK 自带 **DNS rebinding 防护**：默认只放行 `127.0.0.1` / `localhost` / `[::1]` 的 Host 头。
 > 若通过公网 IP / 域名访问，需在环境变量 `MCP_ALLOWED_HOSTS`（逗号分隔，支持 `host:*` 通配端口）
 > 追加对应 Host，例如 `MCP_ALLOWED_HOSTS=127.0.0.1:*,localhost:*,[::1]:*,124.223.217.62:*`。
+>
+> MCP 服务默认放开跨域：未设置 `MCP_ALLOWED_ORIGINS` 时，所有响应带 `Access-Control-Allow-Origin: *`，
+> 浏览器可直接跨域调用 `/mcp` 与 `/health`；需收紧时设 `MCP_ALLOWED_ORIGINS`（逗号分隔的来源列表）覆盖默认通配符。
 
-离线效果评测见 [`benchmark/`](benchmark/)：10 个任务覆盖 API 查找、类型构造、UI/VM 通信、错误修复、拒绝编造、信息不足先查询，用 `scripts/check_benchmark_task.py` 自动验收。
+离线效果评测分三层，见 [`benchmark/`](benchmark/)：
+
+| 层 | 入口 | 需要 Agent / LLM | 状态 |
+|---|---|---|---|
+| MCP 工具级（58 条黄金用例：契约 / 边界 / not_found / 降级 / 异常隔离 / 幂等性） | `python scripts/run_mcp_eval.py` | 否，已进 CI | 已执行，GATE PASS |
+| MCP 多轮序列（6 条链路，跨步骤引用 / 指代传递） | `python scripts/run_mcp_sequences.py` | 否，已进 CI | 已执行，6/6 |
+| 多次调用稳定性（30 轮 × 8 工具 + 5 路并发 + 故障恢复 + 状态泄漏） | `python scripts/check_mcp_stability.py` | 否，建议发布前跑 | 已执行，GATE PASS |
+| 任务可解性验收（初始态应失败 + 参考解应通过） | `python scripts/check_benchmark_task.py --all --mode both` | 否 | 已执行，10/10 |
+| Agent 调用行为与端到端增益（无 MCP vs 有 MCP） | `python scripts/check_agent_trace.py --dir benchmark/traces` | 是 | 待执行 |
+
+10 个任务覆盖 API 查找、类型构造、UI/VM 通信、错误修复、拒绝编造、信息不足先查询。
+`tasks.json` 的 `mcp_tools_expected` / `reference_symbols` 由 `check_agent_trace.py` 计算
+工具选择 F1、符号覆盖、冗余调用率与序列合规。结果见 [`benchmark/results/comparison.md`](benchmark/results/comparison.md)。
 
 ## 15. 测试与验证
 
@@ -430,7 +450,7 @@ prompts/             Git-based Prompt 版本
 eval/                Golden Dataset、评分、A/B 报告与 Regression Gate
 mcp_server/          MCP Server（工具、服务、Rule、配置、遥测，只读查询）
 rules/               酷家乐结构化 Guardrail 规则（唯一平台约束事实源）
-benchmark/           MCP 效果评测任务集与验收脚本
+benchmark/           MCP 工具级黄金评测集、任务集、参考解、Agent 轨迹与结果
 scripts/             知识构建、失败案例导出、评测入口
 frontend/            Next.js Chat UI 与 Feedback UI
 deploy/              Docker 镜像与 Compose
