@@ -7,11 +7,22 @@
 ## [Unreleased]
 
 ### Added
+- 新增 **CodeBuddy Agent Driver 抽象层** `scripts/agent_drivers/`（`base.py` 定义 `BenchmarkDriver` / `AgentRunResult` / `CodeBuddyConfig` / trace normalizer；`reference.py` 为确定性 stand-in；`codebuddy.py` 提供 `CodeBuddyManualDriver`（prepare/import 真实回灌）与 `CodeBuddyCLIDriver`（headless 不可采集时显式报错，不伪造）），把真实 Coding Agent 与 Benchmark Harness 解耦
+- `scripts/run_coding_agent_benchmark.py` 重构：新增 `--driver reference|codebuddy-manual|codebuddy-cli`、`--runs N`、隔离工作区（`results/workspaces/<mode>/<task>-r<run>`）、baseline/MCP 的 `.codebuddy/mcp.json` 切换、CodeBuddy trace → canonical schema 归一化、`--prepare/--import` 手动工作流，以及 `aggregate.json` / `per-task` / `Failure Analysis` / `comparison.md` / `metadata.json` 输出；不可得数据标记 UNAVAILABLE
+- **执行真实 CodeBuddy Baseline vs MCP 实验**（10 任务 × 2 条件 × 1 run/task，manual/import）：结果 `benchmark/results/codebuddy-20260921-155307/`（Task Success Rate 0.6 → 1.0，Hallucination 0.3 → 0.0，Abstention 0.5 → 1.0；token/cost/latency 标记 UNAVAILABLE）
+- 新增 `tests/test_agent_drivers.py`（全部 mock，不启动真实 CodeBuddy）：config 解析、工作区隔离、baseline/MCP 切换、trace 归一化、timeout、agent 失败、非法输出、缺失 token、聚合与报告生成
+- 重构 `README.md` 与 `spec.md` 以匹配当前真实代码（MCP 9 工具、Task Runtime / Repair / Validator / Observability / Evaluation 分层、真实 Benchmark 结果），删除已失真的旧描述（如「真实 Agent 实验恒为 NOT_RUN」「external driver / --endpoint」）
+- 更新 `benchmark/README.md`：L2/L3 状态改为「已有真实轨迹 / 已执行（manual）」并记录真实 Baseline vs MCP 结果
+
+### Changed
+- `scripts/agent_drivers/reference.py` 承接原 harness 内 `ReferenceDriver`；旧 `ExternalDriver`（`--endpoint` stub）移除
+
+### Added
 - 新增 **P0 Coding Agent 工程化**（见 `docs/architecture-coding-agent-p0.md` 与 `docs/adr/ADR-001~004`）：项目级确定性校验、有界 Repair Loop、Task Runtime、Coding Agent Benchmark harness
 - 重新引入 `validate_plugin_project` MCP 工具（新实现 `mcp_server/services/project_validator.py`）：STRUCTURE / MANIFEST / RULE / API / BUILD 五类确定性检查，复用与查询侧同一份知识索引（`data/knowledge`）和规则层（`rules/kujiale`）；宿主运行期规则（CORS / OPTIONS / 探活）显式标记“需宿主验证”，不伪造通过；`dist` / `build` / `node_modules` 不参与校验
 - 新增 `agent/runtime` 包：`Task / TaskStep / Checkpoint / ArtifactVersion / TraceEvent` 模型、`TaskStateMachine`（非法迁移显式报错）、SQLite repositories（重启可恢复）、`Error Taxonomy`（Retry 按分类而非裸 except）
 - 新增有界 Repair Loop `agent/runtime/repair.py`：以 Validator Issue 为证据的最小必要修复，超过 `max_repair_attempts` 进入 FAILED，每轮产生新 ArtifactVersion 与 TraceEvent
-- 新增 Coding Agent Benchmark harness `scripts/run_coding_agent_benchmark.py`：Baseline vs MCP 控制变量对比、确定性评分（acceptance + 源文件级 API/RULE 判定，不依赖 LLM Judge）；`reference` 驱动结果仅为管线自检，真实外部 Agent（`--driver external`）未接入前状态恒为 **NOT_RUN**；自检产物见 `benchmark/results/agent_benchmark_{runs,summary,comparison}`
+- 新增 Coding Agent Benchmark harness `scripts/run_coding_agent_benchmark.py`：Baseline vs MCP 控制变量对比、确定性评分（acceptance + 源文件级 API/RULE 判定，不依赖 LLM Judge）；`reference` 驱动结果仅为管线自检（**不是 Agent 能力分数**）；自检产物见 `benchmark/results/agent_benchmark_{runs,summary,comparison}`
 - 新增 MCP 工具级黄金评测集 `benchmark/mcp_golden.json`（58 条用例，覆盖 8 个工具的 happy_path / not_found / boundary / degradation / unsupported / error_safety）与执行器 `scripts/run_mcp_eval.py`：输出 Contract Pass Rate、Status Accuracy、Determinism Rate（同参重复调用比对，剔除 `request_id`/`duration_ms`）、Not-Found Precision、Task Symbol Coverage 与分工具 P50/P95，并按 `benchmark/mcp_gate.json` 判定 GATE
 - 新增 Agent 调用轨迹评分器 `scripts/check_agent_trace.py`，首次真正消费 `tasks.json` 中的 `mcp_tools_expected` 与 `reference_symbols`：输出工具选择 P/R/F1、符号覆盖率、冗余调用率、序列合规（constraints 先于 scaffold、get_api/get_type 先于 validate_api_usage）与拒答正确性；`--self-test` 用明确标注的合成轨迹验证评分器自身
 - 新增 10 个 benchmark 参考解 `benchmark/solutions/T01..T10/vm.ts` 与轨迹落盘规范 `benchmark/traces/README.md`

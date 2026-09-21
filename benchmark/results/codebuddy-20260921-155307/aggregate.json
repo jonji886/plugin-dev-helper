@@ -1,12 +1,12 @@
 {
   "baseline": {
-    "task_success_rate": 0.2,
-    "first_pass_success_rate": 0.2,
-    "api_correctness": 0.8,
-    "constraint_violation_rate": 0.0,
-    "hallucination_rate": 0.2,
+    "task_success_rate": 0.6,
+    "first_pass_success_rate": 0.6,
+    "api_correctness": 0.7,
+    "constraint_violation_rate": 0.1,
+    "hallucination_rate": 0.3,
     "abstention_correct_rate": 0.5,
-    "mean_latency_ms": 46.72,
+    "mean_latency_ms": "UNAVAILABLE",
     "tokens": "UNAVAILABLE",
     "count": 10
   },
@@ -17,7 +17,7 @@
     "constraint_violation_rate": 0.0,
     "hallucination_rate": 0.0,
     "abstention_correct_rate": 1.0,
-    "mean_latency_ms": 21.83,
+    "mean_latency_ms": "UNAVAILABLE",
     "tokens": "UNAVAILABLE",
     "count": 10
   }

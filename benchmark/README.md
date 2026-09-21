@@ -31,11 +31,14 @@ benchmark/
 
 | 层 | 对象 | 是否需要 Agent / LLM | 入口 | 状态 |
 |---|---|---|---|---|
-| **L0** | MCP 工具契约/边界 | 否 | `python scripts/run_mcp_eval.py` | 已执行 |
-| **L1** | MCP 多轮序列（跨步骤引用） | 否 | `python scripts/run_mcp_sequences.py` | 已执行 |
-| **L2** | Agent 调用行为 | 是（需轨迹） | `python scripts/check_agent_trace.py --dir benchmark/traces` | 待执行 |
-| **L3** | 端到端任务增益 | 是（需真实 Agent） | `python scripts/check_benchmark_task.py` | 待执行 |
-| **L4** | 多次调用稳定性 | 否（但耗时，建议发布前跑） | `python scripts/check_mcp_stability.py` | 已执行 |
+| **L0** | MCP 工具契约/边界 | 否 | `python scripts/run_mcp_eval.py` | 已执行，GATE PASS |
+| **L1** | MCP 多轮序列（跨步骤引用） | 否 | `python scripts/run_mcp_sequences.py` | 已执行，6/6 |
+| **L2** | Agent 调用行为 | 是（需轨迹） | `python scripts/check_agent_trace.py --dir benchmark/traces` | 已有真实轨迹（CodeBuddy MCP 条件） |
+| **L3** | 端到端任务增益（Baseline vs MCP） | 是（需真实 Agent） | `python scripts/run_coding_agent_benchmark.py --driver codebuddy-manual` | 已执行（manual，1 run/task） |
+| **L4** | 多次调用稳定性 | 否（但耗时，建议发布前跑） | `python scripts/check_mcp_stability.py` | 已执行，GATE PASS |
+
+> 任务可解性验收（`check_benchmark_task.py --all --mode both`，10/10）是 L3 的前置自检：
+> 证明任务可解且初始态有区分度。参考解**不是** Agent 产出，不能用来冒充跑分。
 
 ## 评测维度
 
@@ -155,28 +158,57 @@ Abstention Correctness（T09 类任务必须明确说明不存在）。
 
 对 `tasks.json` 中每个任务：
 
-1. 把 `fixtures/<task>/` 作为 Coding Agent 的工作目录。
-2. 使用同一份 `task_prompt` 驱动 Agent。
-3. **基线（无 MCP）**：Agent 只能依赖自身知识，不能调用 MCP。
-4. **实验（有 MCP）**：Agent 接入 MCP。
-5. 采集：`accepted`、MCP 调用轨迹、最终代码正确性、token / 耗时。
+1. 从 `fixtures/<task>/` 复制到**隔离工作区**（每次执行都从干净 fixture 开始，禁止复用上次结果）。
+2. 使用同一份 `task_prompt` 驱动同一 CodeBuddy。
+3. **基线（无 MCP）**：工作区**不**写入 `.codebuddy/mcp.json`，Agent 不能调用 Plugin Dev Helper MCP。
+4. **实验（有 MCP）**：工作区写入 `.codebuddy/mcp.json`（plugin-dev-helper），Agent 真实接入 MCP。
+5. 采集：`accepted`、MCP 调用轨迹、最终代码正确性、token / 耗时（不可得者标记 UNAVAILABLE）。
 
-结果汇总写入 [`results/comparison.md`](results/comparison.md)。
+结果汇总写入 `results/codebuddy-<timestamp>/`（`metadata.json` / `raw_results.json` / `aggregate.json` /
+`comparison.md` / `agent_trace_results.json`）与 `traces/codebuddy-<timestamp>/`（canonical trace）。
 
 > 说明：fixture 是最小工程，仅用于类型层面验收。真实插件运行还需要
 > `manifest.json` + `page.html`，不在本评测范围内。
 
-## 7. Coding Agent 项目级 Benchmark（P0）
+## 7. Coding Agent 端到端 Benchmark（真实 CodeBuddy）
+
+### Driver 分层（`scripts/agent_drivers/`）
+
+| Driver | 说明 |
+|---|---|
+| `reference` | 确定性 stand-in：mcp 应用参考解、baseline 原样 fixture。仅用于 **harness / evaluator 自检**，不是 Agent 分数 |
+| `codebuddy-manual` | **真实执行**：Harness 准备隔离工作区 + prompt + MCP 配置，由真实 CodeBuddy 执行后回灌 artifact + trace（标记 `manual_execution=true`） |
+| `codebuddy-cli` | 真实调用 `buddycn chat`；本环境该 CLI 不向 stdout 返回结果，无法 headless 采集 → 自动判 **NOT_RUN**，不伪造任何输出 |
 
 运行：
 
 ```bash
-python scripts/run_coding_agent_benchmark.py --mode both --out-dir benchmark/results
-# 真实外部 Agent（接入后才有 Baseline vs MCP 结论）：
-python scripts/run_coding_agent_benchmark.py --driver external --endpoint <agent-url>
+# 自检（确定性，非 Agent 分数）
+python scripts/run_coding_agent_benchmark.py --driver reference --mode both
+
+# 真实 CodeBuddy：准备 → 在真实 CodeBuddy 中执行 → 回灌评估
+python scripts/run_coding_agent_benchmark.py --driver codebuddy-manual --prepare --runs 1 --mode both
+python scripts/run_coding_agent_benchmark.py --driver codebuddy-manual --import  --runs 1 --mode both
 ```
 
-- **控制变量**：两组唯一差异是是否可访问 plugin-dev-helper MCP（`scripts/agent_drivers/`）；相同任务、相同初始 fixture、相同 `ProjectValidator` + 确定性 Evaluator（acceptance 断言 + 源文件级 API/RULE 判定，不用 LLM Judge）。
-- **诚实性约束**：默认 `--driver reference` 是确定性 stand-in，其产物（`results/agent_benchmark_*`）只能解读为 **harness 自检**（管线可用性 + 指标口径正确性），不是 Agent 能力分数；真实 Coding Agent Baseline vs MCP 实验在 external driver 接入前恒为 **NOT_RUN**（设计见 `docs/adr/ADR-004-*`）。
-- API / RULE 判定与线上 MCP 共用同一份 `data/knowledge` 与 `rules/kujiale`；`dist` / `build` / `node_modules` 不参与断言与校验；源码级任务不评估工程完整性规则（`KJL-DEV-*` / `KJL-MANIFEST-*`）。
-- 自检通过标准：mcp 模式（参考解）应全绿；baseline 模式（原始 fixture）作为保守下界；两组差值只说明“已知正解可通过校验器”，不用于宣称 Agent 收益。
+### 控制变量与诚实性
+
+- **唯一变量**：是否可访问 plugin-dev-helper MCP（其余：Agent / 任务 / fixture / evaluator / validator / acceptance 固定）。
+- API / RULE 判定与线上 MCP 共用同一份 `data/knowledge` 与 `rules/kujiale`；`dist` / `build` / `node_modules` 不参与；源码级任务不评估工程完整性规则（`KJL-DEV-*` / `KJL-MANIFEST-*`）。
+- 不可得数据标记 **UNAVAILABLE**（token / cost / latency），未执行标记 **NOT_RUN**。`reference` 产物只能解读为管线自检。
+
+### 已执行的真实结果（`results/codebuddy-20260921-155307/`）
+
+Agent：CodeBuddy（manual / import）· 任务 10 · **1 run/task** · Evaluator：ProjectValidator + acceptance（非 LLM Judge）
+
+| Metric | Baseline | MCP | Delta |
+|---|---:|---:|---:|
+| Task Success Rate | 0.6 | 1.0 | +0.4 |
+| API Correctness | 0.7 | 1.0 | +0.3 |
+| Hallucination Rate | 0.3 | 0.0 | -0.3 |
+| Constraint Violation Rate | 0.1 | 0.0 | -0.1 |
+| Abstention Correct Rate | 0.5 | 1.0 | +0.5 |
+| Latency / Token | UNAVAILABLE | UNAVAILABLE | — |
+
+> 局限：1 run/task 样本量小，不代表统计稳定；baseline 是否完全禁用全局 MCP 取决于 CodeBuddy
+> 配置合并行为（已在 `metadata.json` 披露）；acceptance 为字符串断言，注释中的被禁符号也会触发失败。

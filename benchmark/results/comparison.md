@@ -1,6 +1,6 @@
 # 评测结果对比
 
-> 状态：**工具级已执行；Agent 级（无 MCP vs 有 MCP）仍待执行**
+> 状态：**工具级已执行；Agent 级（无 MCP vs 有 MCP）已执行（CodeBuddy manual，1 run/task）→ 见 [`codebuddy-20260921-155307/comparison.md`](codebuddy-20260921-155307/comparison.md)**
 
 本文件区分两类结果，不要混淆：
 

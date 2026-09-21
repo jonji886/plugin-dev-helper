@@ -2,465 +2,271 @@
 
 [![CI](https://github.com/jonji886/plugin-dev-helper/actions/workflows/ci.yml/badge.svg)](https://github.com/jonji886/plugin-dev-helper/actions/workflows/ci.yml)
 
-> 面向 SDK / API / TypeScript 源码和插件开发文档的 **Enterprise Developer Copilot**。它把结构化知识构建、Hybrid RAG、LangGraph Workflow、可验证 Citation、Observability、用户反馈和离线评测连接成一个可持续改进的 AI 应用闭环。
+**Plugin Dev Helper 是面向设计平台插件开发场景的 Developer AI Engineering System。**
+它把插件 SDK（`*.d.ts`）与开发文档构建成可检索、可引用的结构化知识，通过 **Chat Copilot** 服务开发者，
+通过 **MCP Server** 把同一份能力提供给 Coding Agent，并用**不依赖 LLM 的确定性校验**判定 Agent 产出是否可交付。
 
-本项目不是通用 Chatbot，也不是只展示向量检索的 PDF RAG Demo。目标用户是使用设计平台开放能力的研发人员；目标是让开发者更快找到正确 API、理解参数和源码、生成可执行示例，并能追溯答案依据。
+它服务三类对象：**开发者**（查 API、懂参数、看源码）、**Coding Agent**（获取领域知识、做平台约束自检）、
+**项目维护者**（回归评测、观测与修复闭环）。
+
+它维护的不是「答案看起来像不像」，而是**可验证的工程事实**：每条引用可回溯到源码行号与 SDK 版本，
+每个 Agent 产出都要过确定性 Validator，每个 AI 能力变化都要过分层评测。
+所以它不是普通 RAG Demo，也不是只会聊天的知识库。
+
+---
 
 ## 30 秒概览
 
 | 维度 | 实现 |
 |---|---|
-| What | SDK / API / 插件研发知识助手 |
-| Knowledge | TypeScript AST 解析 + Markdown 文档 + 依赖图 |
-| Retrieval | 语义检索 + API/别名词法检索 + 结果合并 + 依赖展开 |
-| Agent | 意图识别 → 多轮问题重写 → 检索 → 图扩展 → 回答 |
-| Trust | 结构化 Citation、证据不足时拒答、敏感信息不进入远程 Trace |
-| Quality | Langfuse（可选）+ Feedback → Badcase → Regression Dataset → Prompt A/B Gate |
-| Operations | SQLite 请求指标、延迟、token、估算成本、模型路由记录 |
+| Problem | 插件 SDK/文档分散、类型复杂、API 易幻觉、Agent 缺领域上下文、产出缺确定性验证 |
+| Knowledge | tree-sitter AST 解析 `*.d.ts` + 文档知识单元 + networkx 依赖图 |
+| RAG | 语义检索（Chroma + `all-MiniLM-L6-v2`）+ 词法打分（hybrid），LangGraph 编排，**系统装配可验证 Citation** |
+| MCP | 9 个只读工具，供宿主 IDE / Coding Agent 调用 SDK 查询与校验能力 |
+| Coding Agent | Project Validator（确定性）+ Task Runtime（状态机/Checkpoint/Resume/Artifact 版本）+ 有界 Repair Loop |
+| Reliability | LLM 输出不可信 → 确定性校验 → 通过 / 有界修复 / 拒绝，不把 Prompt 当可靠性边界 |
+| Evaluation | RAG Eval、Prompt A/B + 回归门禁、MCP L0/L1/L4、Agent 轨迹 L2、端到端 Benchmark L3 |
+| Observability | SQLite 请求指标（延迟 / token / 估算成本 / 模型路由）+ MCP telemetry + 可选 Langfuse |
 
-## 1. 项目简介
+---
 
-开发者面对 SDK 和插件文档时，通常需要在类型定义、示例、开发规范和历史上下文之间反复切换。Plugin Dev Helper 将这些知识构建成可检索单元，在线通过 Agent 编排回答：
-
-- 查询 API、接口、枚举、参数和返回值
-- 解释 TypeScript SDK 源码与类型依赖
-- 生成 SDK 调用示例
-- 支持多轮上下文和结构化来源引用
-- 采集单次回答反馈，沉淀可复核的 badcase
-
-## 2. 为什么不是普通 RAG Bot
-
-项目把“答案质量”当作工程系统来维护，而不是只看模型能否生成文本：
-
-1. 知识不是原始文档堆积：SDK 经过 AST 解析，保留符号、命名空间、源码行号和版本信息；依赖图用于补充相关类型。
-2. 检索不是单一路径：语义检索与 API 名称/别名/描述词法匹配合并，针对总览问题提升概览文档权重。
-3. 回答不是无来源生成：Citation 从实际检索结果和知识索引装配，不能由 LLM 自行编造。
-4. 质量不是一次性验收：线上请求与用户反馈进入 SQLite，负反馈可晋升为评测样例，Prompt 改动用同一 Golden Dataset 做离线 A/B 和回归门禁。
-5. 模型选择是应用决策：Router 识别意图，Main 处理常规问答，Reason 处理代码/高复杂度任务，Vision 处理图片；缺少可选角色时明确回退并记录。
-
-## 3. 核心能力与真实场景
-
-典型问题包括：
-
-- “`IDP.Miniapp.exit` 怎么调用？”——返回 API 说明、TypeScript 示例和源码位置。
-- “`MiniappUploadDataOption` 有哪些字段？”——解释接口参数，并补充相关类型依赖。
-- “工具插件的 UI 和 VM 分工是什么？”——从 RAG Markdown 文档回答架构和生命周期问题。
-- “这个回答引用错了/没有找到正确文档。”——前端选择反馈原因，后端形成待复核 badcase。
-
-## 4. 系统架构
+## 系统架构
 
 ```mermaid
-flowchart LR
-  SRC[SDK TypeScript + docs/rag] --> AST[AST Parser]
-  AST --> KB[Knowledge Units]
-  AST --> GRAPH[Dependency Graph]
-  KB --> INDEX[Hybrid Index]
-  U[Developer] --> FE[Next.js Chat UI]
-  FE --> API[FastAPI]
-  API --> AGENT[LangGraph Agent]
-  AGENT --> RETRIEVE[Semantic + Lexical Retrieval]
-  RETRIEVE --> INDEX
-  RETRIEVE --> GRAPH
-  AGENT --> ROUTER[Application Model Router]
-  ROUTER --> MAIN[Main / Reason / Vision]
-  MAIN --> ANSWER[Answer + Citation]
-  ANSWER --> FE
-  API --> SQL[(SQLite Telemetry)]
-  API -. optional .-> LF[Langfuse]
+flowchart TB
+  subgraph KB[知识层]
+    DTS[SDK *.d.ts] --> AST[tree-sitter AST]
+    MD[docs/rag] --> SYNC[sync_rag_docs]
+    AST --> KBB[Knowledge Builder] --> GRAPH[Dependency Graph]
+    KBB --> VS[(Chroma + Embedding)]
+  end
+  VS --> COPILOT[Developer Copilot\nFastAPI + LangGraph]
+  VS --> MCP[MCP Server\n9 只读工具]
+  COPILOT --> RAG[Answer + 系统装配 Citation]
+  MCP --> VALID[Project Validator\n确定性]
+  RT[Task Runtime\n状态机/Checkpoint] --> VALID
+  VALID --> REPAIR[Bounded Repair Loop]
+  COPILOT --> EVAL[RAG Eval / Prompt A-B]
+  MCP --> MCPEV[MCP L0/L1/L4]
+  VALID --> BENCH[Coding Agent Benchmark\nBaseline vs MCP]
 ```
 
-### 4.1 离线 Knowledge & RAG Pipeline
+Copilot 与 MCP **共享同一份知识索引与向量库**；Task Runtime 与 MCP 调用**同一个 Project Validator**；
+Benchmark 复用同一 Validator 与轨迹评分器。详见 [`spec.md`](spec.md)。
 
-```mermaid
-flowchart LR
-  A[SDK package] --> B[tree-sitter AST]
-  D[docs/rag Markdown] --> C[Knowledge Builder]
-  B --> C
-  B --> G[Dependency Graph]
-  C --> J[Knowledge Index]
-  J --> V[Chroma + Embedding]
-```
+---
 
-`data/knowledge/_index.json` 保存知识单元的 ID、来源文件、SDK 版本、别名和行号；`data/graph/` 保存依赖关系；`data/chroma/` 是构建产物。`data/` 不应手工编辑。
+## 核心能力
 
-### 4.2 Agent Workflow
+### 1. 结构化开发者知识
+`*.d.ts` 经 tree-sitter 解析为符号单元（interface / type / enum / function / const），保留命名空间、
+参数、必填性、别名、**源码行号**与 **SDK 版本**；networkx 构建依赖图。产物在 `data/knowledge/` 与 `data/graph/`。
 
-```mermaid
-flowchart TD
-  Q[User Query] --> I[Intent Router]
-  I --> R[Query Rewrite]
-  R --> S[Hybrid Retrieve]
-  S --> X[Graph Expansion]
-  X --> G[Answer Generator]
-  G --> C[Structured Citations]
-  C --> O[Observable Answer]
-```
+### 2. Developer Copilot
+LangGraph 固定节点：意图识别 → 多轮问题重写 → hybrid 检索 → 依赖图展开 → 回答生成。
+**Citation 由系统确定性装配**（依据检索结果 + 知识索引），不是 LLM 生成，并做 `citation_validity` 校验。
 
-实际节点为：Intent Router、Query Rewrite、Retrieve、Graph Expansion、Answer Generator、Session Memory。没有为了展示而虚构 Tool Calling 或 Multi-Agent。
+### 3. MCP for Coding Agents
+一个**只读** MCP Server（Streamable HTTP），把 SDK 查询与校验能力暴露给宿主 IDE / Coding Agent：
 
-## 5. AI Quality Loop
+| 工具 | 作用 |
+|---|---|
+| `search_docs` | 自然语言检索 SDK/API/文档 |
+| `get_api` / `get_type` | 精确查 API / 类型定义；未命中返回 `candidate_symbols`，不冒充精确结果 |
+| `get_related_symbols` | 依赖 / 被引展开 |
+| `get_examples` | 返回真实代码示例（不临时生成） |
+| `validate_api_usage` | 单段代码 API 用法静态校验 |
+| `get_plugin_constraints` | 平台结构约束（Rule Layer） |
+| `get_plugin_scaffold` | 最小插件骨架（`vanilla` / `react-ts-webpack`） |
+| `validate_plugin_project` | 项目级确定性校验 |
 
-```mermaid
-flowchart TD
-  A[Answer] --> O[Observability]
-  A --> F[User Feedback]
-  O --> B[Badcase Candidate]
-  F --> B
-  B --> R[Human Review]
-  R --> D[Evaluation Dataset]
-  D --> E[Prompt A/B + Regression Gate]
-  E --> P[Prompt Update]
-  E --> K[Retrieval / Knowledge Update]
-  P --> REL[Release]
-  K --> REL
-```
+### 4. Deterministic Validation
+`ProjectValidator` 做五类检查：STRUCTURE / MANIFEST / RULE / API / BUILD。
+API 类检查复用与查询侧同一份知识索引，可检出**不存在的 API、错误命名空间、错误参数名、缺失必填**。
+CORS / OPTIONS 等宿主运行期行为静态不可判定，显式标记「需宿主环境验证」，不静态宣布通过。
 
-负反馈不会直接被当成“标准答案”。Promote 前需要人工补充 `expected_answer`、`expected_keywords` 或 `reference_docs`，避免把用户情绪或错误判断污染 Golden Dataset。
+### 5. Task Runtime & Repair
+状态机驱动的任务生命周期（非法迁移显式报错）、SQLite 持久化、Checkpoint / Resume、Artifact 版本、
+失败分类（Taxonomy）与根因分析。修复为**有界**（默认 2 次）、证据驱动、修复后**重校验**。
 
-## 6. Evaluation
+### 6. Evaluation & Observability
+分层评测（见下方表格）+ SQLite 请求指标（延迟 / token / 估算成本 / 模型路由）+ MCP telemetry；Langfuse 可选。
 
-已有评测保留以下指标：
+---
 
-- `Recall@1/3/5`
-- `Answer Correctness`（关键词命中或明确拒答行为）
-- `Citation Validity`
-- `Reference Cited Rate`
-- 平均延迟、token 和估算成本
-
-使用同一批 Golden Dataset 比较两个 Prompt 版本：
-
-```bash
-python3 scripts/run_prompt_eval.py --baseline v1 --candidate v2
-```
-
-报告会输出两组指标和 Delta，并读取 [`eval/gate.json`](eval/gate.json) 判断 `PASS/FAIL`：Recall@5 或正确性下降超过 3%，或 Citation Validity 低于 90% 时失败。若没有可用模型密钥，应用只能运行本地兜底，不应把该结果冒充真实模型评测；评测输出也不作为仓库中的虚假生产结果。
-
-评测脚本会把运行元数据一并写入 [`eval/prompt_eval_results.json`](eval/prompt_eval_results.json)，包括数据集 SHA-256、Prompt 元数据、当前四角色模型、价格配置版本、执行时间、失败样本和硬超时。Prompt A/B 为了隔离 Prompt 变量，评测阶段使用与生产规则一致的确定性任务分类；答案生成仍真实调用当前 `.env` 中的 Main/Reason/Vision 模型，报告标记为 `evaluation_mode=real_llm`、`router_mode=deterministic_for_eval`。
-
-最近一次真实运行（2026-08-25，24 条 Golden Dataset，`ANSWER_CONTEXT_MAX_CHARS=6000`）结果：
-
-| Metric | v1 | v2 | Delta |
-|---|---:|---:|---:|
-| Recall@5 | 91.67% | 91.67% | 0 |
-| Answer Correctness | 91.67% | 91.67% | 0 |
-| Citation Validity | 95.83% | 95.83% | 0 |
-| Avg Latency | 22.6515s | 40.7276s | +18.0761s |
-| Avg Tokens | 2,515.96 | 2,346.29 | -169.67 |
-| Avg Cost | ¥0.00607583 | ¥0.00585354 | -¥0.00022229 |
-| Failed Cases | 1/24 | 3/24 | +2 |
-
-本次报告已修正为请求级 token/cost 统计：v1 的超时样本为 `q004`；v2 的超时样本为 `q008`、`q013`、`q020`。`rag002` 在上下文预算修复后两版本均完成，但分别耗时约 60 秒和 89 秒。v2 的 Gate 结果为 `FAIL`：正确性下降 8.34 个百分点、Citation Validity 降至 87.50%；没有填充答案或伪造指标，生产默认继续使用 v1。
-
-只验证检索门禁、不调用 LLM：
-
-```bash
-python3 scripts/check_retrieval_gate.py
-```
-
-四角色真实路由验收使用 [`eval/model_routing_cases.json`](eval/model_routing_cases.json)，覆盖常规问答、代码、复杂推理和截图识别：
-
-```bash
-.venv/bin/python scripts/check_model_routing.py
-```
-
-脚本会校验每个响应的 `model_role` 是否符合预期，并保存 [`eval/model_routing_results.json`](eval/model_routing_results.json)。报告同时记录批次失败率、批次 token/cost 增量，以及 `/api/metrics` 返回的总延迟、P50/P95、LLM 延迟、token、估算成本和 `by_model_role` 分角色统计。该脚本会真实调用模型，适合发布前或配置变更后执行，不建议在每次单元测试中运行。
-
-最近一次真实路由验收（2026-08-25）为 4/4 角色命中、0 失败：常规问答 → Main（DeepSeek V4 Flash），代码 → Reason（GLM-5.1），复杂推理 → Reason（GLM-5.1），截图识别 → Vision（Qwen3-VL-32B）。本批 `/api/metrics` 增量为 12,103 tokens、估算成本 ¥0.101654；全窗口快照为 P50 27.42s、P95 56.70s、失败率 0%。
-
-故障转移请求级验收使用 [`tests/test_failover_request.py`](tests/test_failover_request.py)：通过注入 SiliconFlow 超时验证 `/api/chat` 会返回官方 DeepSeek 的 provider/model/route reason，并在 `/api/metrics` 中只记录一次请求的 token、成本和成功状态；同时验证 401 认证错误不会切换且会正确计入失败率。该测试不调用真实模型、不消耗额度；真实 Provider 故障演练应在预发布环境通过受控超时配置执行。
-
-## 7. Observability
-
-Langfuse 是可选依赖和可选开关：
-
-```bash
-pip install -e ".[dev,observability]"
-```
-
-设置 `LANGFUSE_ENABLED=true` 后，单次 Trace 以 `request_id` 作为可关联 `trace_id`，记录用户问题、重写问题、意图、检索查询、文档 ID、chunks、scores、Top-K、Hybrid Merge 结果、来源类型、知识版本、Prompt 元数据、Provider、Model、路由原因、temperature、token、估算成本、检索/模型/总耗时、Citation 数量和有效性、成功状态及错误类型。默认关闭或 Langfuse 不可用时，主 Chat 链路继续运行，只记录 Warning；不写入 API Key 或完整系统 Prompt。
-
-不会把 API Key、完整密钥或不必要的完整系统 Prompt 写入 Trace；答案用于调试时也会截断。
-
-## 8. Feedback、Badcase 与 API
-
-回答下方提供 `👍 有帮助` / `👎 没帮助`。负反馈可选择：回答错误、没有找到正确文档、引用错误、代码示例错误、回答不完整、其他，并填写可选说明。
-
-主要接口：
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | `/api/chat` | 文本/图片问答，返回 `request_id/trace_id`、回答、provider/model、路由角色/原因和 Citation |
-| POST | `/api/chat/feedback` | 兼容旧调用方的反馈接口 |
-| POST | `/api/feedback` | 统一反馈接口别名 |
-| GET | `/api/badcases` | 查看 `NEW/REVIEWED/PROMOTED/IGNORED` 案例 |
-| POST | `/api/badcases/{id}/promote` | 追加到 `eval/regression_cases.json` |
-| GET | `/api/metrics` | 成功率、P50/P95、引用率、token、成本、反馈率 |
-| GET | `/api/metrics/failures` | 查询无检索、无引用、错误或负反馈候选 |
-
-SQLite 至少关联保存：`feedback_id/request_id(trace_id)`、session、query、answer、rating、reason、comment、Prompt 版本、model、时间；请求日志额外保存检索文档 ID、token 和 estimated cost。
-
-图片请求最多 3 张，支持 `data:image/*;base64,...` 或 HTTPS 图片 URL；图片内容不会写入会话 SQLite，只在当前请求内传递给 Vision 模型：
-
-```json
-{
-  "query": "请识别截图中的插件 API 用法",
-  "session_id": "a1b2c3d4",
-  "images": ["data:image/png;base64,..."]
-}
-```
-
-## 9. Prompt Version Management
-
-Prompt 采用 Git 管理，不引入额外 Prompt SaaS 或数据库：
+## Why MCP（不只是 RAG Chat）
 
 ```text
-prompts/
-├── developer_qa/v1.md
-├── developer_qa/v2.md
-├── query_rewrite/v1.md
-└── intent_classifier/v1.md
+Chat  → 给人答案
+MCP   → 给 Agent 结构化、可调用、可验证的能力
 ```
 
-[`prompts/manifest.json`](prompts/manifest.json) 维护每个版本的 `status`、`created_at` 和 `description`。每一次 LLM 调用会关联 `prompt_name`、`prompt_version` 和这些非敏感元数据。修改 Prompt 的理由、效果和评测结果应通过代码 Review、`CHANGELOG.md` 或评测报告保留。
+RAG 回答「`IDP.Miniapp.exit` 怎么用」是靠自然语言；而 Coding Agent 在真实工程里需要的是
+**可被程序调用的精确查询与校验**：`get_api` 精确命中符号、`get_type` 给出必填字段、
+`validate_api_usage` / `validate_plugin_project` 直接判定代码是否违反平台约束。
+MCP 把这套能力从「给人看的文本」变成「给 Agent 用的接口」，并用统一的确定性 Validator 收敛产出质量。
 
-## 10. Model Routing & Cost
+---
 
-`app/model_router.py` 是应用层路由器，不是独立 AI Gateway。当前默认采用四角色策略：
+## Reliability（核心理念）
 
-| 角色 | 配置 | 负责内容 | 触发条件 |
-|---|---|---|---|
-| Router | `ROUTER` | 意图、复杂度和置信度识别 | Agent 第一阶段 |
-| Main | `MAIN` | 常规 SDK/API 知识库问答、问题重写 | 默认路径 |
-| Reason | `REASON` | 代码示例、高复杂度或低置信度任务 | `code`、`high`、需要深度推理 |
-| Vision | `VISION` | 截图、界面和图片内容理解 | 请求携带 `images` |
-
-路由顺序是“先分类，再回答”：Router 只承担轻量分类；常规问题进入 Main；代码/复杂问题进入 Reason；带图片的最终回答进入 Vision。Vision 优先级高于文本复杂度，避免把多模态请求误派给纯文本模型。Router 结果会记录 `complexity/confidence/need_reason`，便于后续评测和调参；低置信度会升级到 Reason。确定性回退同时覆盖“分析、排查、分步骤、可能原因、推理”等复杂问题表达。
-
-Router 使用独立的轻量预算：默认 `15s` 超时、`0` 次重试、最多 `256` tokens，避免分类失败拖慢主链路。Router 超时或返回非法 JSON 时，系统会基于原始问题调用 `infer_task_type()` 确定性回退，不会把普通问题盲目升级到 Reason。
-
-当前 SiliconFlow 中转配置示例：
-
-```dotenv
-SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
-SILICONFLOW_API_KEY=your-key
-ROUTER=Qwen/Qwen3-8B
-MAIN=deepseek-ai/DeepSeek-V4-Flash
-REASON=Pro/zai-org/GLM-5.1
-VISION=Qwen/Qwen3-VL-32B-Instruct
+```text
+Agent / LLM output（不可信）
+        ↓
+Deterministic Validator（不依赖 LLM）
+        ↓
+   PASS ──────── REPAIR（有界 2 次，重校验） ──────── REJECT / FAILED（记录根因）
 ```
 
-如果同时配置官方 `DEEPSEEK_API_KEY`，系统通过 Adapter 为文本角色启用故障转移：SiliconFlow 的一次请求出现超时、连接断开、429 或 5xx 等可恢复错误后，Router/Main/Reason 默认切换到官方 `deepseek-v4-flash`。主 Provider 的重试默认降为 0，DeepSeek 备份调用默认最多等待 30 秒且不重试，避免两套重试叠加放大延迟。官方接口默认地址为 `https://api.deepseek.com`；可通过 `DEEPSEEK_FALLBACK_*_MODEL` 覆盖映射。Vision 默认不启用 DeepSeek 兜底，避免把不确定的图像能力当成可用能力。
+> 不把 Prompt 当作可靠性边界。能确定性判定的都确定性判定；不能静态判定的（CORS / OPTIONS）
+> 明确标记为需宿主验证，而不是假装通过。
 
-如果四角色变量均未设置，系统继续兼容旧配置：`MODEL_GLM` → default、`MODEL_QWEN` → fast、`MODEL_DEEPSEEK` → strong；显式 `DEFAULT/FAST/STRONG_LLM_PROVIDER/MODEL` 优先级更高。缺失的可选角色会回退到 Main，并在 `GET /api/ready` 的 `model_role_status` 标记 `fallback=true`。
+---
 
-路由不会把 API Key 写入响应或 Trace；`GET /api/ready` 会返回脱敏后的 `model_routes`、已绑定的 `fallback_routes` 和各角色可用性。SiliconFlow 使用 OpenAI-compatible 接口，模型 ID 必须使用平台中实际可用的模型标识；Vision 角色应配置支持图像输入的模型。
+## Evaluation（分层）
 
-价格集中在 [`config/model_pricing.json`](config/model_pricing.json)，每次调用从 provider response metadata 读取 token，缺失时使用明确的字符数估算，并计算 `estimated_cost`。当前四角色绑定的官方价格（每百万 Token，CNY，抓取于 2026-08-24）如下；GLM-5.1 Pro 按输入是否超过 32K 分档：
+| Layer | Target | Agent Required? | Status | Command |
+|---|---|---|---|---|
+| RAG Eval | Recall@1/3/5 + 答案正确性 + Citation Validity | 是（LLM） | 已执行（有真实报告） | `python eval/run_eval.py` |
+| Prompt A/B + Gate | 两 Prompt 版本对比 + 回归门禁 | 是（LLM） | 已执行 | `python scripts/run_prompt_eval.py --baseline v1 --candidate v2` |
+| MCP L0（工具级） | 契约 / 边界 / not_found / 降级 / 幂等（58 条） | 否 | 已执行，GATE PASS | `python scripts/run_mcp_eval.py` |
+| MCP L1（多轮序列） | 跨步骤引用 / 指代传递（6 条） | 否 | 已执行，6/6 | `python scripts/run_mcp_sequences.py` |
+| Agent L2（轨迹） | 工具选择 F1 / 符号覆盖 / 冗余率 / 序列 / 拒答 | 否 | 已有真实轨迹 | `python scripts/check_agent_trace.py benchmark/traces/<run>.json` |
+| Agent E2E L3 | Baseline vs MCP 端到端任务成功率 | 是（真实 Agent） | 已执行（manual, 1 run/task） | `python scripts/run_coding_agent_benchmark.py --driver codebuddy-manual --prepare/--import` |
+| MCP L4（稳定性） | 多轮 × 工具 + 并发 + 故障恢复 + 状态泄漏 | 否 | 已执行，GATE PASS | `python scripts/check_mcp_stability.py` |
 
-| 角色 | 模型 | 输入 | 输出 |
-|---|---|---:|---:|
-| Router | `Qwen/Qwen3-8B` | ¥0 | ¥0 |
-| Main | `deepseek-ai/DeepSeek-V4-Flash` | ¥1 | ¥2 |
-| Reason | `Pro/zai-org/GLM-5.1` | ¥6 / ¥8（>32K） | ¥24 / ¥28（>32K） |
-| Vision | `Qwen/Qwen3-VL-32B-Instruct` | ¥1 | ¥4 |
+核心成功判定使用**确定性指标**（Validator + acceptance + 轨迹评分），不以 LLM Judge 为准。
 
-价格来源为[硅基流动官方模型价格中心](https://cloud-rd.siliconflow.cn/pricing)，价格可能随账户、时段和平台政策变化；未知模型仍只统计 Token，成本显示为 `0`，不会伪造金额。
+---
 
-官方 DeepSeek 兜底默认使用 `deepseek-v4-flash`，成本配置按官方价格中心的 cache-miss 输入价格估算为 `$0.14/$0.28`（输入/输出，每百万 Token）；配置文件同时保留 `deepseek-v4-pro` 的可选价格记录。价格可能随峰谷时段和官方政策变化，详见[DeepSeek 官方模型与价格](https://api-docs.deepseek.com/quick_start/pricing/)。
+## Real CodeBuddy Benchmark（Baseline vs MCP）
 
-## 11. Reliability & Safety
+> 结果文件：[`benchmark/results/codebuddy-20260921-155307/`](benchmark/results/codebuddy-20260921-155307) ·
+> 报告 [`comparison.md`](benchmark/results/codebuddy-20260921-155307/comparison.md)
 
-- Langfuse 默认关闭，远程上报失败不影响业务请求。
-- LLM 超时、重试次数、检索 Top-K 都由环境变量控制；当前中转配置建议 `LLM_TIMEOUT_SECONDS=60` 供 Main/Reason/Vision 使用，Router 使用独立的 15 秒预算。
-- Provider 通过 Adapter 隔离；SiliconFlow → 官方 DeepSeek 的故障转移只对超时、连接错误、429 和 5xx 等瞬时错误生效，401/403/422 等配置或请求错误不会盲目切换。
-- 服务启动阶段会预热本地 embedding 模型；`GET /api/ready` 返回 `embedding_ready` 和 `embedding_warmup_ms`，避免首个用户请求承担模型加载成本。
-- 每个请求在上下文隔离范围内统计 token 和估算成本，不会把前序请求的累计值重复写入当前请求；`ANSWER_CONTEXT_MAX_CHARS` 默认限制证据上下文为 6000 字符，Relay 较慢时可适当下调。
-- 模型不可用时返回本地知识库兜底内容，不伪装成模型答案。
-- 无证据时明确拒答；Citation 由后端索引校验，不能由模型随意生成。
-- CORS 默认只允许本地前端；生产环境显式配置 `FRONTEND_ORIGINS`。
-- SQLite 是个人作品集规模的低运维选择；Redis、SSE、WebSocket、Multi-Agent、Kubernetes 和微服务拆分留在 P1/P2。
+- **Agent**：CodeBuddy（本机 CLI 存在但无 headless 采集接口 → 采用 `manual / import` 驱动执行）
+- **设计**：同一 CodeBuddy、同一 task prompt、同一 fixture，唯一变量为是否可访问 Plugin Dev Helper MCP
+- **任务**：10 个 · **重复**：1 run/task（**不声称统计稳定**）
+- **Evaluator**：`ProjectValidator`（确定性）+ acceptance 字符串断言（非 LLM Judge）
 
-### 已知限制
+| Metric | Baseline | MCP | Delta |
+|---|---:|---:|---:|
+| Task Success Rate | **0.6** | **1.0** | +0.4 |
+| API Correctness | 0.7 | 1.0 | +0.3 |
+| Hallucination Rate | 0.3 | 0.0 | -0.3 |
+| Constraint Violation Rate | 0.1 | 0.0 | -0.1 |
+| Abstention Correct Rate | 0.5 | 1.0 | +0.5 |
+| Latency / Token | UNAVAILABLE | UNAVAILABLE | — |
 
-- 当前模型路由仍是应用层规则路由；Prompt A/B 评测阶段使用确定性分类以隔离 Router 网络波动。
-- Feedback 晋升回归集前需要人工 Review，系统不会自动把负反馈当成标准答案。
-- `estimated_cost` 是基于公开价格配置的估算值，不等同于账户最终账单；不同货币的历史模型配置不可直接横向相加。
-- 当前 Chat 链路 Golden Dataset 为 24 条，足以做回归门禁，但不能代表完整生产分布。
-- MCP 工具级评测（`benchmark/mcp_golden.json`，58 条）与多轮序列评测（`mcp_sequences.json`，6 条）覆盖工具契约、边界与跨步骤引用，但不评估「Agent 是否会正确选用工具」；后者必须由真实 Agent 轨迹驱动 `check_agent_trace.py`，目前尚无实测数据。
-- `check_mcp_stability.py` 的门禁含时间与漂移阈值，未纳入 CI（共享 runner 调度抖动会误报），仅在发布前或配置变更后手动执行。
-- `benchmark/` 的「无 MCP vs 有 MCP」对比至今未执行，`results/comparison.md` 中该两列仍为 N/A；参考解仅用于证明任务可解，不能冒充 Agent 结果。
-- SiliconFlow 中转的长响应可能出现偶发长等待；应用已限制 Router 预算并限制答案上下文，但 Main/Reason/Vision 的最终可用性仍取决于上游超时和重试配置。
-- Langfuse 是可选依赖；未开启或远端不可用时只能查看本地 SQLite 指标，不能查看远程 Trace。
+典型差异：无 MCP 时 Agent 直接采信任务中的错误 API 名（T09 幻觉）、猜错命名空间（T03）、
+用真实但不适用的 API（T04）、沿用错误参数名（T08）；接入 MCP 后通过 `get_api` / `get_type`
+查证真实符号与字段后修正。
 
-## 12. 技术选型与取舍
+`Latency / Token` 无法从 CodeBuddy 程序化获取，标记 `UNAVAILABLE`（不估算、不伪造）。
+`reference` driver 仅用于 harness / evaluator 自检，**不是 Agent Benchmark**。规格与局限详见
+[`spec.md` §12](spec.md) 与 [`benchmark/README.md`](benchmark/README.md)。
 
-| 选择 | 原因 |
-|---|---|
-| LangGraph | 让多步 Agent 状态和节点边界显式化，便于定位检索/生成问题 |
-| Chroma + sentence-transformers | 本地可部署、成本低，适合个人作品集规模 |
-| SQLite | 请求指标、反馈和 badcase 需要持久化，但当前规模不需要引入数据库服务 |
-| Git-based Prompt | 版本可 Review、可回滚、与 Prompt A/B 天然关联 |
-| Langfuse optional | 复用成熟 Trace 产品，同时保证可观测性不是核心链路依赖 |
+---
 
-## 13. 技术栈
+## Quick Start
 
-Python 3.11、FastAPI、LangGraph、LangChain OpenAI-compatible Client、Chroma、sentence-transformers、tree-sitter、SQLite、Next.js 16、React 19、Tailwind CSS 4。
-
-## 14. 快速启动
-
-前置：Python 3.11+、Node.js 18+。推荐配置 SiliconFlow 中转 API；没有模型密钥时服务仍能展示本地知识库兜底结果。
+前置：Python 3.11+、Node.js 18+。推荐配置一个模型 API Key；无密钥时服务仍可展示本地知识库兜底。
 
 ```bash
+# 1) 安装
 python3.11 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
-npm install
-cd frontend && npm install && cd ..
-cp .env.example .env
+npm install && (cd frontend && npm install)
+
+# 2) 构建知识库（AST 解析 → 知识单元 → 依赖图 → 向量索引）
+cp .env.example .env          # 按需填写模型 Key
 .venv/bin/python scripts/run_pipeline.py
+
+# 3) 启动后端（FastAPI，:8000）
 .venv/bin/uvicorn app.main:app --reload --port 8000
-```
 
-另开终端启动前端：
-
-```bash
+# 4) 启动前端（Next.js，:3000）
 cd frontend && npm run dev
 ```
 
-打开 `http://localhost:3000`，或访问 `http://localhost:8000/api/health` 验证后端。
-
-如需 Langfuse：`.venv/bin/pip install -e ".[dev,observability]"`，再在 `.env` 中填写配置。Docker 部署配置位于 [`deploy/docker-compose.yml`](deploy/docker-compose.yml)，镜像默认复制已构建知识库和 embedding 缓存。
-
-### Plugin Developer MCP Server
-
-除面向用户的 Chat UI 外，项目还内置一个**只读** MCP Server，供本地 Coding Agent（Claude / Cursor / CodeBuddy 等）通过 MCP 协议查询插件 SDK / API / 类型 / 开发文档，进而修改本地插件工程并执行 Build/Test。
+**MCP Server**（Streamable HTTP，默认 `http://127.0.0.1:8001/mcp`）：
 
 ```bash
-# 本地启动（Streamable HTTP，默认 http://127.0.0.1:8001/mcp）
 .venv/bin/python -m mcp_server
-# 健康检查 / 就绪检查
 curl http://127.0.0.1:8001/health
-curl http://127.0.0.1:8001/ready
 ```
 
 MCP 客户端配置示例：
 
 ```json
-{
-  "mcpServers": {
-    "plugin-developer-mcp": {
-      "url": "http://127.0.0.1:8001/mcp",
-      "transport": "streamable-http"
-    }
-  }
-}
+{ "mcpServers": { "plugin-developer-mcp": { "url": "http://127.0.0.1:8001/mcp", "transport": "streamable-http" } } }
 ```
 
-只读工具：
+**测试与评测**：
 
-| 工具 | 作用 |
-|---|---|
-| `search_docs` | 自然语言检索 SDK/API/文档，返回带 `source/source_lines/sdk_version` 的结构化片段 |
-| `get_api` | 按符号精确查 API 定义（参数、返回值、源码位置、SDK 版本）；无精确匹配时返回 `candidate_symbols`，不冒充精确结果 |
-| `get_type` | 查 interface/type/enum 的字段、是否必填、枚举值、依赖类型 |
-| `get_related_symbols` | 查符号的依赖/被引关系，构造参数前展开相关类型 |
-| `get_examples` | 从 docs/rag 与知识库返回官方代码示例（只返回真实片段，不临时生成冒充官方） |
-| `validate_api_usage` | 静态校验代码里的 API 用法（不存在 API、错误 namespace/参数名、缺必填、SDK 版本不一致） |
-| `get_plugin_constraints` | 按平台组件和任务返回酷家乐工具插件的结构化约束，Critical/High 优先 |
-| `get_plugin_scaffold` | 按 `stack` 返回最小合法骨架与 UI/VM 职责边界：`vanilla`（原生 HTML，返回 `manifest.json`/`page.html`/`page.js`/`vm.js`/`package.json` + http-server）或 `react-ts-webpack`（React 17 + TS + Webpack 5） |
+```bash
+.venv/bin/pytest -q                                            # 全部单元测试
+.venv/bin/python scripts/run_mcp_eval.py                       # MCP L0 工具级
+.venv/bin/python scripts/run_mcp_sequences.py                  # MCP L1 多轮序列
+.venv/bin/python scripts/check_mcp_stability.py                # MCP L4 稳定性
+.venv/bin/python scripts/check_benchmark_task.py --all --mode both   # 任务可解性
+.venv/bin/python scripts/check_agent_trace.py --self-test      # 轨迹评分器自检
+```
 
-### Kujiale Plugin Guardrails
+**跑真实 Coding Agent Benchmark（manual）**：
 
-酷家乐工具插件不是普通 Web 项目：UI 运行在 iframe 中，负责 DOM、用户交互和网络请求；VM 负责调用 `IDP` 插件 API，但不能依赖 DOM、浏览器网络请求或定时器。UI 与 VM 之间应通过 `window.parent.postMessage` 和 `defaultFrame.postMessage` 通信。
+```bash
+# 1) 准备隔离工作区（baseline 不写 MCP 配置；mcp 写 .codebuddy/mcp.json）
+.venv/bin/python scripts/run_coding_agent_benchmark.py --driver codebuddy-manual --prepare --runs 1 --mode both
+# 2) 在真实 CodeBuddy 中逐一对每个 workspace 执行任务并保存 vm.ts（MCP 条件会真实调用 MCP）
+# 3) 回灌并评估 + 生成 aggregate / per-task / failure analysis / comparison.md
+.venv/bin/python scripts/run_coding_agent_benchmark.py --driver codebuddy-manual --import --runs 1 --mode both
+```
 
-本地开发工程还必须能通过 `npm start` 启动 HTTP Server。服务需要提供 `manifest.json`、`manifest.frame` 指向的 HTML 和 `manifest.main` 指向的 VM JavaScript，并处理浏览器跨域访问与 `OPTIONS` 预检。MCP 不长期托管插件资源，只通过脚手架生成服务并静态校验工程配置。
+---
 
-这些强约束维护在 [`rules/kujiale/`](rules/kujiale) 的结构化 Rule Layer 中。Knowledge 继续负责 API 文档、参数、示例和教程；Rule Layer 负责“必须 / 禁止 / 只能”等可验证约束。`AGENTS.md` 只规定调用时机，不复制平台规则。
-
-推荐的 Coding Agent 链路是：
+## Repository Structure
 
 ```text
-用户需求
-  → get_plugin_constraints
-  → get_plugin_scaffold（需要时）
-  → 查询 API / 文档并生成代码
-  → 按约束修复 Critical / High 问题
-  → npm start
-```
-
-声明可运行前，请自行用浏览器或 HTTP 客户端验证本地 HTTP Server 的 manifest/frame/main、CORS 与 OPTIONS 预检。
-
-插件工程可调用 `validate_plugin_project(project_dir)` 做**项目级确定性校验**（结构 / manifest / 平台规则 / API 符号幻觉，基于与查询侧同一份知识索引与规则层；`dist`、`build`、`node_modules` 不参与）。CORS 与 OPTIONS 预检等宿主运行期行为无法静态判定，校验结果会显式标记为“需宿主环境验证”，需本地启动服务后自行确认。设计决策见 [`docs/adr/`](docs/adr)，整体链路见 [`docs/architecture-coding-agent-p0.md`](docs/architecture-coding-agent-p0.md)。
-
-[`demos/buggy_kujiale_plugin/`](demos/buggy_kujiale_plugin) 故意包含违反 Guardrail 的写法，可供对照 `get_plugin_constraints` 返回的规则学习。规则来自当前项目维护的插件开发知识和约束；本项目属于个人技术 POC，不代表酷家乐官方规范的完整或永久版本。
-
-远程部署复用 [`deploy/docker-compose.yml`](deploy/docker-compose.yml) 的 `mcp` 服务（镜像 [`deploy/Dockerfile.mcp`](deploy/Dockerfile.mcp)），用 `MCP_HOST_PORT` 指定宿主机端口。
-
-> MCP SDK 自带 **DNS rebinding 防护**：默认只放行 `127.0.0.1` / `localhost` / `[::1]` 的 Host 头。
-> 若通过公网 IP / 域名访问，需在环境变量 `MCP_ALLOWED_HOSTS`（逗号分隔，支持 `host:*` 通配端口）
-> 追加对应 Host，例如 `MCP_ALLOWED_HOSTS=127.0.0.1:*,localhost:*,[::1]:*,124.223.217.62:*`。
->
-> MCP 服务默认放开跨域：未设置 `MCP_ALLOWED_ORIGINS` 时，所有响应带 `Access-Control-Allow-Origin: *`，
-> 浏览器可直接跨域调用 `/mcp` 与 `/health`；需收紧时设 `MCP_ALLOWED_ORIGINS`（逗号分隔的来源列表）覆盖默认通配符。
-
-离线效果评测分三层，见 [`benchmark/`](benchmark/)：
-
-| 层 | 入口 | 需要 Agent / LLM | 状态 |
-|---|---|---|---|
-| MCP 工具级（58 条黄金用例：契约 / 边界 / not_found / 降级 / 异常隔离 / 幂等性） | `python scripts/run_mcp_eval.py` | 否，已进 CI | 已执行，GATE PASS |
-| MCP 多轮序列（6 条链路，跨步骤引用 / 指代传递） | `python scripts/run_mcp_sequences.py` | 否，已进 CI | 已执行，6/6 |
-| 多次调用稳定性（30 轮 × 8 工具 + 5 路并发 + 故障恢复 + 状态泄漏） | `python scripts/check_mcp_stability.py` | 否，建议发布前跑 | 已执行，GATE PASS |
-| 任务可解性验收（初始态应失败 + 参考解应通过） | `python scripts/check_benchmark_task.py --all --mode both` | 否 | 已执行，10/10 |
-| Agent 调用行为与端到端增益（无 MCP vs 有 MCP） | `python scripts/check_agent_trace.py --dir benchmark/traces` | 是 | 待执行 |
-
-10 个任务覆盖 API 查找、类型构造、UI/VM 通信、错误修复、拒绝编造、信息不足先查询。
-`tasks.json` 的 `mcp_tools_expected` / `reference_symbols` 由 `check_agent_trace.py` 计算
-工具选择 F1、符号覆盖、冗余调用率与序列合规。结果见 [`benchmark/results/comparison.md`](benchmark/results/comparison.md)。
-
-## 15. 测试与验证
-
-```bash
-.venv/bin/pytest -q
-cd frontend && npm run lint
-cd frontend && npm run build
-```
-
-重点测试覆盖 SDK 解析、混合检索、Citation、会话持久化、运行时路径、SQLite 指标/反馈和 API；专项测试覆盖 Prompt Registry、价格分档、Provider 不可用和 Langfuse Fail Open；离线评测覆盖检索召回、答案关键词和引用有效性。
-
-真实 Prompt A/B 评测：
-
-```bash
-EVAL_CASE_TIMEOUT_SECONDS=90 .venv/bin/python scripts/run_prompt_eval.py --baseline v1 --candidate v2
-```
-
-导出历史失败候选：
-
-```bash
-.venv/bin/python scripts/export_failure_cases.py --database data/app.sqlite3 --output eval/failure_candidates.jsonl
-```
-
-## 16. 项目结构
-
-```text
-app/                 FastAPI、配置、SQLite、Observability、Router、Prompt Registry
-agent/               LangGraph 节点、会话、模型调用与 Citation
-vector_store/        Chroma 与混合检索
-knowledge_builder/   知识单元构建
-sdk_parser/          TypeScript AST 解析
+app/                 FastAPI、配置、SQLite 指标、Observability、模型路由、Prompt Registry
+agent/               LangGraph 节点、会话与 Citation；runtime/ 为 Task Runtime / Repair / Trace / 状态机
+vector_store/        Chroma 与 hybrid 检索
+sdk_parser/          tree-sitter TypeScript AST 解析
+knowledge_builder/   知识单元构建 + 依赖图（GraphBuilder）
 prompts/             Git-based Prompt 版本
-eval/                Golden Dataset、评分、A/B 报告与 Regression Gate
-mcp_server/          MCP Server（工具、服务、Rule、配置、遥测，只读查询）
-rules/               酷家乐结构化 Guardrail 规则（唯一平台约束事实源）
-benchmark/           MCP 工具级黄金评测集、任务集、参考解、Agent 轨迹与结果
-scripts/             知识构建、失败案例导出、评测入口
-frontend/            Next.js Chat UI 与 Feedback UI
+eval/                Golden Dataset、评分、Prompt A/B 报告与 Regression Gate
+mcp_server/          MCP Server（tools / services / Rule / telemetry）
+rules/               酷家乐结构化 Guardrail 规则
+benchmark/           tasks / fixtures / solutions / traces / results（含真实 CodeBuddy 结果）
+scripts/             构建、评测入口；agent_drivers/ 为 Benchmark Driver 抽象层
+frontend/            Next.js Chat UI 与反馈 UI
+docs/                ADR 与架构说明
 deploy/              Docker 镜像与 Compose
 ```
 
-## 17. Roadmap
+---
 
-- P0（当前）：Observability、Feedback、Badcase、Prompt 版本、离线 A/B、回归门禁、模型路由、token/cost 和质量闭环。
-- P1：更细粒度 Citation 验证、人工评审页面、检索/回答质量仪表盘、批量数据导入。
-- P2：在真实规模和合规要求驱动下再评估 Redis、流式响应、权限体系、服务拆分和更复杂的 Gateway。
+## Design Decisions
+
+- [`docs/adr/ADR-001`](docs/adr) 项目级确定性 Validator 作为交付判定唯一事实来源
+- [`docs/adr/ADR-002`](docs/adr) Task Runtime 与 LangGraph 内部状态解耦
+- [`docs/adr/ADR-003`](docs/adr) 有界 Repair Loop（基于 Validator Evidence）
+- [`docs/adr/ADR-004`](docs/adr) Coding Agent Benchmark 控制变量与诚实性原则
+- 链路总览：[`docs/architecture-coding-agent-p0.md`](docs/architecture-coding-agent-p0.md)
+- 完整规格：[`spec.md`](spec.md) · 评测说明：[`benchmark/README.md`](benchmark/README.md)
+
+---
+
+## Limitations（真实限制）
+
+- Fixture 为最小 TypeScript 工程，不等价于真实宿主插件运行环境。
+- 真实 CodeBuddy Benchmark 为 **1 run/task（manual）**，样本量小，不代表统计稳定。
+- CodeBuddy 的 token / cost / latency 无法程序化获取，标记 `UNAVAILABLE`。
+- baseline 是否完全禁用全局 MCP 取决于 CodeBuddy 配置合并行为（已在 metadata 披露）。
+- `TaskRuntime` 的构建步骤在缺少 `tsc_cmd` 时不真正执行；acceptance 为字符串断言（注释中的被禁符号也会触发失败）。
+- 检索词法侧为自研关键字打分（非 BM25）；`graph_builder/` 为空占位。
+- 无多租户鉴权与内容安全过滤；MCP 默认放开跨域。
+- 本项目为个人技术 POC，Rule Layer 不代表官方规范的完整或永久版本。
 
 ## 许可证
 

@@ -1,0 +1,57 @@
+{
+  "agent": "codebuddy",
+  "agent_version": "CodeBuddy CN 1.106.1",
+  "model": "UNAVAILABLE",
+  "driver": "codebuddy-manual",
+  "manual_execution": true,
+  "benchmark_version": "0.2.0",
+  "git_commit": "63bfee0f0b9ce561c0b99cc789a7a31ce4b3f294",
+  "started_at": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/baseline/T01-r0",
+  "finished_at": "2026-09-21T07:53:08.927538+00:00",
+  "runs_per_task": 1,
+  "task_count": 10,
+  "baseline_config": {
+    "mcp_enabled": false,
+    "note": "工作区不写入 .codebuddy/mcp.json；若 CodeBuddy 合并用户级 mcp.json 提供 plugin-dev-helper，则该环境变量无法完全固定（见 ADR-004）"
+  },
+  "mcp_config": {
+    "mcp_enabled": true,
+    "mcp_servers": [
+      "plugin-dev-helper"
+    ],
+    "url": "http://124.223.217.62:8011/mcp"
+  },
+  "environment": {
+    "os": "darwin",
+    "known_limitations": [
+      "fixture 为最小 TypeScript 工程，不等价于真实宿主插件运行环境",
+      "CodeBuddy 模型可能具有随机性；本执行 runs=1，不声称统计稳定",
+      "token / cost 无法从 CodeBuddy 程序化获取，标记 UNAVAILABLE",
+      "baseline 是否真正禁用了全局 MCP 取决于 CodeBuddy 配置合并行为（已披露）"
+    ]
+  },
+  "summary": {
+    "baseline": {
+      "task_success_rate": 0.6,
+      "first_pass_success_rate": 0.6,
+      "api_correctness": 0.7,
+      "constraint_violation_rate": 0.1,
+      "hallucination_rate": 0.3,
+      "abstention_correct_rate": 0.5,
+      "mean_latency_ms": "UNAVAILABLE",
+      "tokens": "UNAVAILABLE",
+      "count": 10
+    },
+    "mcp": {
+      "task_success_rate": 1.0,
+      "first_pass_success_rate": 1.0,
+      "api_correctness": 1.0,
+      "constraint_violation_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "abstention_correct_rate": 1.0,
+      "mean_latency_ms": "UNAVAILABLE",
+      "tokens": "UNAVAILABLE",
+      "count": 10
+    }
+  }
+}

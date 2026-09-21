@@ -28,6 +28,9 @@ eval/prompt_eval_results.json
 eval/failure_candidates*.jsonl
 # Coding Agent Benchmark 每次运行的生成工程（含 dist/，可重跑复现）
 benchmark/results/_runs/
+# Benchmark 隔离工作区与运行清单（由 --prepare 生成，可重跑；结果报告与 trace 仍提交）
+benchmark/results/workspaces/
+benchmark/results/runs_manifest.json
 
 # IDE 本地数据（含集成凭据）
 .codebuddy/

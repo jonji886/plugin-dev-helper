@@ -25,7 +25,7 @@
                          ┌──────────────▼────────────────┐
                          │ Benchmark Harness             │
                          │ Baseline vs MCP（控制变量）    │
-                         │ reference=自检 / external=真实 │
+                         │ reference=自检 / codebuddy=真实 │
                          └───────────────────────────────┘
 ```
 
@@ -48,8 +48,9 @@
 2. **源码优先**：一切断言与校验排除 `dist` / `build` / `node_modules`（编译产物可能残留旧错误）。
 3. **宿主相关不伪造**：CORS / OPTIONS / HTTP 探活标记 `runtime_required` WARNING，
    只有在宿主环境验证后才能声明通过。
-4. **诚实性红线**：reference driver 的分数仅代表管线自检通过；真实 Coding Agent
-   Baseline vs MCP 实验在接入外部 Agent 前永远是 `NOT_RUN`。
+4. **诚实性红线**：reference driver 的分数仅代表管线自检通过，不是 Agent 能力分数；
+   真实 CodeBuddy Baseline vs MCP 实验通过 `codebuddy-manual` 驱动执行（标记
+   `manual_execution=true`），不可得数据标记 `UNAVAILABLE`、未执行标记 `NOT_RUN`。
 
 ## 运行与验证入口
 
@@ -58,8 +59,12 @@
 .venv/bin/python -m pytest tests/ -q
 
 # Benchmark harness 自检（reference driver，真实 KB + 规则层）
-.venv/bin/python scripts/run_coding_agent_benchmark.py --mode both --out-dir benchmark/results
+.venv/bin/python scripts/run_coding_agent_benchmark.py --driver reference --mode both
 
-# 外部真实 Agent 接入（未提供 endpoint 时输出 NOT_RUN，不产伪造数据）
-.venv/bin/python scripts/run_coding_agent_benchmark.py --driver external
+# 真实 CodeBuddy：准备隔离工作区 → 在真实 CodeBuddy 中执行 → 回灌评估
+.venv/bin/python scripts/run_coding_agent_benchmark.py --driver codebuddy-manual --prepare --runs 1 --mode both
+.venv/bin/python scripts/run_coding_agent_benchmark.py --driver codebuddy-manual --import  --runs 1 --mode both
+
+# codebuddy-cli：真实调用 buddycn chat，本环境无法 headless 采集 → 显式 NOT_RUN
+.venv/bin/python scripts/run_coding_agent_benchmark.py --driver codebuddy-cli
 ```
