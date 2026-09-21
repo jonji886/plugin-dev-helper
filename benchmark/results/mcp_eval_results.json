@@ -43,51 +43,51 @@
     "latency_ms": {
       "get_api": {
         "calls": 13,
-        "avg": 4.37,
-        "p50": 0.35,
-        "p95": 16.6
+        "avg": 13.28,
+        "p50": 2.11,
+        "p95": 32.93
       },
       "get_examples": {
         "calls": 4,
-        "avg": 5.96,
-        "p50": 8.65,
-        "p95": 12.09
+        "avg": 21.9,
+        "p50": 11.75,
+        "p95": 67.99
       },
       "get_plugin_constraints": {
         "calls": 5,
-        "avg": 14.23,
+        "avg": 81.67,
         "p50": 0.03,
-        "p95": 71.08
+        "p95": 408.24
       },
       "get_plugin_scaffold": {
         "calls": 5,
-        "avg": 0.14,
+        "avg": 0.08,
         "p50": 0.01,
-        "p95": 0.4
+        "p95": 0.22
       },
       "get_related_symbols": {
         "calls": 3,
-        "avg": 0.16,
-        "p50": 0.05,
-        "p95": 0.41
+        "avg": 0.29,
+        "p50": 0.06,
+        "p95": 0.77
       },
       "get_type": {
         "calls": 6,
-        "avg": 2.7,
-        "p50": 0.22,
-        "p95": 8.35
+        "avg": 1.41,
+        "p50": 0.26,
+        "p95": 4.19
       },
       "search_docs": {
         "calls": 7,
-        "avg": 700.06,
-        "p50": 116.48,
-        "p95": 4000.61
+        "avg": 2183.8,
+        "p50": 568.69,
+        "p95": 12267.19
       },
       "validate_api_usage": {
         "calls": 6,
-        "avg": 1.93,
-        "p50": 0.15,
-        "p95": 9.02
+        "avg": 1.28,
+        "p50": 0.19,
+        "p95": 5.98
       }
     },
     "status_cases_count": 49
@@ -138,7 +138,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 29.9
+      "duration_ms": 32.93
     },
     {
       "id": "MCP-A02",
@@ -150,7 +150,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.2
+      "duration_ms": 8.38
     },
     {
       "id": "MCP-A03",
@@ -162,7 +162,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 2.07
+      "duration_ms": 32.52
     },
     {
       "id": "MCP-A04",
@@ -174,7 +174,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 1.63
+      "duration_ms": 2.11
     },
     {
       "id": "MCP-A05",
@@ -186,7 +186,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.35
+      "duration_ms": 0.78
     },
     {
       "id": "MCP-A06",
@@ -198,7 +198,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.03
+      "duration_ms": 0.18
     },
     {
       "id": "MCP-A07",
@@ -210,7 +210,7 @@
       "outcome": "responded",
       "status": "not_found",
       "determinism": 1.0,
-      "duration_ms": 16.6
+      "duration_ms": 24.14
     },
     {
       "id": "MCP-A08",
@@ -222,7 +222,7 @@
       "outcome": "responded",
       "status": "not_found",
       "determinism": 1.0,
-      "duration_ms": 2.57
+      "duration_ms": 62.41
     },
     {
       "id": "MCP-A09",
@@ -234,7 +234,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.02
+      "duration_ms": 0.03
     },
     {
       "id": "MCP-A10",
@@ -270,7 +270,7 @@
       "outcome": "responded",
       "status": "not_found",
       "determinism": 1.0,
-      "duration_ms": 3.34
+      "duration_ms": 9.05
     },
     {
       "id": "MCP-B01",
@@ -282,7 +282,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.22
+      "duration_ms": 0.26
     },
     {
       "id": "MCP-B02",
@@ -294,7 +294,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.04
+      "duration_ms": 0.03
     },
     {
       "id": "MCP-B03",
@@ -306,7 +306,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.54
+      "duration_ms": 0.27
     },
     {
       "id": "MCP-B04",
@@ -318,7 +318,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 7.04
+      "duration_ms": 4.19
     },
     {
       "id": "MCP-B05",
@@ -330,7 +330,7 @@
       "outcome": "responded",
       "status": "not_found",
       "determinism": 1.0,
-      "duration_ms": 8.35
+      "duration_ms": 3.67
     },
     {
       "id": "MCP-B06",
@@ -342,7 +342,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.03
+      "duration_ms": 0.04
     },
     {
       "id": "MCP-B07",
@@ -366,7 +366,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.05
+      "duration_ms": 0.06
     },
     {
       "id": "MCP-C02",
@@ -378,7 +378,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.03
+      "duration_ms": 0.04
     },
     {
       "id": "MCP-C03",
@@ -390,7 +390,7 @@
       "outcome": "responded",
       "status": "not_found",
       "determinism": 1.0,
-      "duration_ms": 0.41
+      "duration_ms": 0.77
     },
     {
       "id": "MCP-C04",
@@ -426,7 +426,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 4000.61
+      "duration_ms": 12267.19
     },
     {
       "id": "MCP-D02",
@@ -438,7 +438,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 67.25
+      "duration_ms": 679.31
     },
     {
       "id": "MCP-D03",
@@ -450,7 +450,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 185.79
+      "duration_ms": 501.73
     },
     {
       "id": "MCP-D04",
@@ -462,7 +462,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 116.48
+      "duration_ms": 568.69
     },
     {
       "id": "MCP-D05",
@@ -474,7 +474,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 82.64
+      "duration_ms": 244.17
     },
     {
       "id": "MCP-D06",
@@ -486,7 +486,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 439.06
+      "duration_ms": 1021.53
     },
     {
       "id": "MCP-D07",
@@ -534,7 +534,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 8.61
+      "duration_ms": 3.97
     },
     {
       "id": "MCP-E01",
@@ -546,7 +546,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 8.65
+      "duration_ms": 11.75
     },
     {
       "id": "MCP-E02",
@@ -558,7 +558,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 2.44
+      "duration_ms": 67.99
     },
     {
       "id": "MCP-E03",
@@ -570,7 +570,7 @@
       "outcome": "responded",
       "status": "not_found",
       "determinism": 1.0,
-      "duration_ms": 0.65
+      "duration_ms": 1.79
     },
     {
       "id": "MCP-E04",
@@ -582,7 +582,7 @@
       "outcome": "responded",
       "status": "not_found",
       "determinism": 1.0,
-      "duration_ms": 12.09
+      "duration_ms": 6.08
     },
     {
       "id": "MCP-E05",
@@ -606,7 +606,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.15
+      "duration_ms": 0.28
     },
     {
       "id": "MCP-F02",
@@ -618,7 +618,7 @@
       "outcome": "responded",
       "status": "invalid",
       "determinism": 1.0,
-      "duration_ms": 9.02
+      "duration_ms": 1.04
     },
     {
       "id": "MCP-F03",
@@ -630,7 +630,7 @@
       "outcome": "responded",
       "status": "invalid",
       "determinism": 1.0,
-      "duration_ms": 0.15
+      "duration_ms": 0.19
     },
     {
       "id": "MCP-F04",
@@ -642,7 +642,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.08
+      "duration_ms": 0.12
     },
     {
       "id": "MCP-F05",
@@ -654,7 +654,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.07
+      "duration_ms": 0.08
     },
     {
       "id": "MCP-F06",
@@ -666,7 +666,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 2.09
+      "duration_ms": 5.98
     },
     {
       "id": "MCP-F07",
@@ -690,7 +690,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 71.08
+      "duration_ms": 408.24
     },
     {
       "id": "MCP-G02",
@@ -702,7 +702,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.03
+      "duration_ms": 0.04
     },
     {
       "id": "MCP-G03",
@@ -726,7 +726,7 @@
       "outcome": "responded",
       "status": "not_supported",
       "determinism": 1.0,
-      "duration_ms": 0.0
+      "duration_ms": 0.01
     },
     {
       "id": "MCP-G05",
@@ -750,7 +750,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.28
+      "duration_ms": 0.15
     },
     {
       "id": "MCP-H02",
@@ -762,7 +762,7 @@
       "outcome": "responded",
       "status": "ok",
       "determinism": 1.0,
-      "duration_ms": 0.4
+      "duration_ms": 0.22
     },
     {
       "id": "MCP-H03",
@@ -810,7 +810,7 @@
       "outcome": "responded",
       "status": "error",
       "determinism": null,
-      "duration_ms": 0.02
+      "duration_ms": 0.01
     },
     {
       "id": "MCP-I02",

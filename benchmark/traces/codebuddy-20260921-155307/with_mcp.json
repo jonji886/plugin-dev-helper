@@ -1,0 +1,381 @@
+{
+  "runs": [
+    {
+      "run_id": "codebuddy-20260921-155307-mcp",
+      "agent": "codebuddy",
+      "condition": "with_mcp",
+      "tasks": [
+        {
+          "task_id": "T01",
+          "accepted": true,
+          "abstained": false,
+          "calls": [
+            {
+              "seq": 1,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Miniapp.exit"
+              },
+              "status": "ok"
+            }
+          ],
+          "symbols_queried": [
+            "IDP.Miniapp.exit"
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": "codebuddy-20260921-155307-mcp",
+      "agent": "codebuddy",
+      "condition": "with_mcp",
+      "tasks": [
+        {
+          "task_id": "T02",
+          "accepted": true,
+          "abstained": false,
+          "calls": [
+            {
+              "seq": 1,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Hardware.uploadData"
+              },
+              "status": "not_found"
+            },
+            {
+              "seq": 2,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Miniapp.uploadDataAsync"
+              },
+              "status": "ok"
+            },
+            {
+              "seq": 3,
+              "tool": "get_type",
+              "arguments": {
+                "name": "MiniappUploadDataOption"
+              },
+              "status": "ok"
+            }
+          ],
+          "symbols_queried": [
+            "IDP.Miniapp.uploadDataAsync",
+            "MiniappUploadDataOption"
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": "codebuddy-20260921-155307-mcp",
+      "agent": "codebuddy",
+      "condition": "with_mcp",
+      "tasks": [
+        {
+          "task_id": "T03",
+          "accepted": true,
+          "abstained": false,
+          "calls": [
+            {
+              "seq": 1,
+              "tool": "search_docs",
+              "arguments": {
+                "query": "获取当前工具类型 判断是否为衣柜工具 Wardrobe isWardrobe",
+                "top_k": 5
+              },
+              "status": "ok"
+            },
+            {
+              "seq": 2,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Tool.getToolType"
+              },
+              "status": "not_found"
+            },
+            {
+              "seq": 3,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Custom.Common.getCurrentToolType"
+              },
+              "status": "ok"
+            }
+          ],
+          "symbols_queried": [
+            "IDP.Custom.Common.getCurrentToolType"
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": "codebuddy-20260921-155307-mcp",
+      "agent": "codebuddy",
+      "condition": "with_mcp",
+      "tasks": [
+        {
+          "task_id": "T04",
+          "accepted": true,
+          "abstained": false,
+          "calls": [
+            {
+              "seq": 1,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.PostMessage.postMessage"
+              },
+              "status": "not_found"
+            },
+            {
+              "seq": 2,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Host.postMessage"
+              },
+              "status": "ok"
+            },
+            {
+              "seq": 3,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Miniapp.view.defaultFrame.postMessage"
+              },
+              "status": "ok"
+            }
+          ],
+          "symbols_queried": [
+            "IDP.Miniapp.view.defaultFrame.postMessage"
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": "codebuddy-20260921-155307-mcp",
+      "agent": "codebuddy",
+      "condition": "with_mcp",
+      "tasks": [
+        {
+          "task_id": "T05",
+          "accepted": true,
+          "abstained": false,
+          "calls": [
+            {
+              "seq": 1,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.PostMessage.onMessage"
+              },
+              "status": "not_found"
+            },
+            {
+              "seq": 2,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Host.onMessageReceive"
+              },
+              "status": "ok"
+            },
+            {
+              "seq": 3,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Miniapp.view.defaultFrame.onMessageReceive"
+              },
+              "status": "ok"
+            }
+          ],
+          "symbols_queried": [
+            "IDP.Miniapp.view.defaultFrame.onMessageReceive"
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": "codebuddy-20260921-155307-mcp",
+      "agent": "codebuddy",
+      "condition": "with_mcp",
+      "tasks": [
+        {
+          "task_id": "T06",
+          "accepted": true,
+          "abstained": false,
+          "calls": [
+            {
+              "seq": 1,
+              "tool": "search_docs",
+              "arguments": {
+                "query": "setContainerOptions 容器选项 窗口可最小化 minimizable",
+                "top_k": 5
+              },
+              "status": "ok"
+            },
+            {
+              "seq": 2,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Miniapp.view.defaultFrame.setContainerOptions"
+              },
+              "status": "not_found"
+            },
+            {
+              "seq": 3,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Miniapp.view.setContainerOptions"
+              },
+              "status": "ok"
+            },
+            {
+              "seq": 4,
+              "tool": "get_type",
+              "arguments": {
+                "name": "MainMountPointOptions"
+              },
+              "status": "ok"
+            }
+          ],
+          "symbols_queried": [
+            "IDP.Miniapp.view.setContainerOptions",
+            "MainMountPointOptions"
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": "codebuddy-20260921-155307-mcp",
+      "agent": "codebuddy",
+      "condition": "with_mcp",
+      "tasks": [
+        {
+          "task_id": "T07",
+          "accepted": true,
+          "abstained": false,
+          "calls": [
+            {
+              "seq": 1,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Miniapp.exit"
+              },
+              "status": "ok"
+            }
+          ],
+          "symbols_queried": [
+            "IDP.Miniapp.exit"
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": "codebuddy-20260921-155307-mcp",
+      "agent": "codebuddy",
+      "condition": "with_mcp",
+      "tasks": [
+        {
+          "task_id": "T08",
+          "accepted": true,
+          "abstained": false,
+          "calls": [
+            {
+              "seq": 1,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Miniapp.uploadDataAsync"
+              },
+              "status": "ok"
+            },
+            {
+              "seq": 2,
+              "tool": "get_type",
+              "arguments": {
+                "name": "MiniappUploadDataOption"
+              },
+              "status": "ok"
+            }
+          ],
+          "symbols_queried": [
+            "IDP.Miniapp.uploadDataAsync",
+            "MiniappUploadDataOption"
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": "codebuddy-20260921-155307-mcp",
+      "agent": "codebuddy",
+      "condition": "with_mcp",
+      "tasks": [
+        {
+          "task_id": "T09",
+          "accepted": true,
+          "abstained": true,
+          "calls": [
+            {
+              "seq": 1,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Miniapp.closeMiniapp"
+              },
+              "status": "not_found"
+            },
+            {
+              "seq": 2,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Miniapp.exit"
+              },
+              "status": "ok"
+            }
+          ],
+          "symbols_queried": [
+            "IDP.Miniapp.exit"
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": "codebuddy-20260921-155307-mcp",
+      "agent": "codebuddy",
+      "condition": "with_mcp",
+      "tasks": [
+        {
+          "task_id": "T10",
+          "accepted": true,
+          "abstained": false,
+          "calls": [
+            {
+              "seq": 1,
+              "tool": "search_docs",
+              "arguments": {
+                "query": "setContainerOptions 容器选项 窗口可最小化 minimizable",
+                "top_k": 5
+              },
+              "status": "ok"
+            },
+            {
+              "seq": 2,
+              "tool": "get_api",
+              "arguments": {
+                "symbol": "IDP.Miniapp.view.setContainerOptions"
+              },
+              "status": "ok"
+            },
+            {
+              "seq": 3,
+              "tool": "get_type",
+              "arguments": {
+                "name": "MainMountPointOptions"
+              },
+              "status": "ok"
+            }
+          ],
+          "symbols_queried": [
+            "IDP.Miniapp.view.setContainerOptions",
+            "MainMountPointOptions"
+          ]
+        }
+      ]
+    }
+  ]
+}

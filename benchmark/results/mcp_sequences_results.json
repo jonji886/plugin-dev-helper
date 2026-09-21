@@ -70,7 +70,7 @@
           "uses_reference": false,
           "reference_resolved": null,
           "status": "ok",
-          "duration_ms": 82.92
+          "duration_ms": 509.27
         },
         {
           "index": 1,
@@ -83,7 +83,7 @@
           "uses_reference": false,
           "reference_resolved": null,
           "status": "ok",
-          "duration_ms": 0.14
+          "duration_ms": 0.23
         },
         {
           "index": 2,
@@ -96,7 +96,7 @@
           "uses_reference": false,
           "reference_resolved": null,
           "status": "ok",
-          "duration_ms": 31.45
+          "duration_ms": 119.11
         },
         {
           "index": 3,
@@ -109,7 +109,7 @@
           "uses_reference": false,
           "reference_resolved": null,
           "status": "ok",
-          "duration_ms": 1.12
+          "duration_ms": 6.89
         }
       ],
       "total_steps": 4,
@@ -123,7 +123,7 @@
         "get_api",
         "validate_api_usage"
       ],
-      "total_ms": 115.63
+      "total_ms": 635.5
     },
     {
       "id": "SEQ-02",
@@ -142,7 +142,7 @@
           "uses_reference": false,
           "reference_resolved": null,
           "status": "ok",
-          "duration_ms": 0.47
+          "duration_ms": 0.19
         },
         {
           "index": 1,
@@ -155,7 +155,7 @@
           "uses_reference": true,
           "reference_resolved": true,
           "status": "ok",
-          "duration_ms": 0.18
+          "duration_ms": 0.84
         },
         {
           "index": 2,
@@ -168,7 +168,7 @@
           "uses_reference": true,
           "reference_resolved": true,
           "status": "ok",
-          "duration_ms": 0.12
+          "duration_ms": 0.14
         }
       ],
       "total_steps": 3,
@@ -181,7 +181,7 @@
         "get_type",
         "validate_api_usage"
       ],
-      "total_ms": 0.77
+      "total_ms": 1.17
     },
     {
       "id": "SEQ-03",
@@ -200,7 +200,7 @@
           "uses_reference": false,
           "reference_resolved": null,
           "status": "invalid",
-          "duration_ms": 1.02
+          "duration_ms": 2.82
         },
         {
           "index": 1,
@@ -213,7 +213,7 @@
           "uses_reference": false,
           "reference_resolved": null,
           "status": "not_found",
-          "duration_ms": 3.28
+          "duration_ms": 6.77
         },
         {
           "index": 2,
@@ -226,7 +226,7 @@
           "uses_reference": false,
           "reference_resolved": null,
           "status": "ok",
-          "duration_ms": 0.18
+          "duration_ms": 0.2
         },
         {
           "index": 3,
@@ -239,7 +239,7 @@
           "uses_reference": true,
           "reference_resolved": true,
           "status": "ok",
-          "duration_ms": 0.04
+          "duration_ms": 0.05
         }
       ],
       "total_steps": 4,
@@ -253,7 +253,7 @@
         "get_api",
         "validate_api_usage"
       ],
-      "total_ms": 4.52
+      "total_ms": 9.84
     },
     {
       "id": "SEQ-04",
@@ -272,7 +272,7 @@
           "uses_reference": false,
           "reference_resolved": null,
           "status": "ok",
-          "duration_ms": 1.24
+          "duration_ms": 1.37
         },
         {
           "index": 1,
@@ -285,7 +285,7 @@
           "uses_reference": false,
           "reference_resolved": null,
           "status": "ok",
-          "duration_ms": 0.28
+          "duration_ms": 1.57
         },
         {
           "index": 2,
@@ -298,7 +298,7 @@
           "uses_reference": false,
           "reference_resolved": null,
           "status": "ok",
-          "duration_ms": 1.55
+          "duration_ms": 10.45
         }
       ],
       "total_steps": 3,
@@ -311,7 +311,7 @@
         "get_type",
         "validate_api_usage"
       ],
-      "total_ms": 3.07
+      "total_ms": 13.39
     },
     {
       "id": "SEQ-05",
@@ -330,7 +330,7 @@
           "uses_reference": false,
           "reference_resolved": null,
           "status": "not_found",
-          "duration_ms": 3.17
+          "duration_ms": 3.34
         },
         {
           "index": 1,
@@ -344,7 +344,7 @@
           "uses_reference": false,
           "reference_resolved": null,
           "status": "ok",
-          "duration_ms": 4484.62
+          "duration_ms": 12960.52
         },
         {
           "index": 2,
@@ -357,7 +357,7 @@
           "uses_reference": true,
           "reference_resolved": true,
           "status": "ok",
-          "duration_ms": 0.02
+          "duration_ms": 0.08
         }
       ],
       "total_steps": 3,
@@ -370,7 +370,7 @@
         "search_docs",
         "get_api"
       ],
-      "total_ms": 4487.81
+      "total_ms": 12963.94
     },
     {
       "id": "SEQ-06",
@@ -390,7 +390,7 @@
           "uses_reference": false,
           "reference_resolved": null,
           "status": "ok",
-          "duration_ms": 0.14
+          "duration_ms": 0.06
         },
         {
           "index": 1,
@@ -403,7 +403,7 @@
           "uses_reference": true,
           "reference_resolved": true,
           "status": "ok",
-          "duration_ms": 0.02
+          "duration_ms": 0.03
         }
       ],
       "total_steps": 2,
@@ -415,7 +415,7 @@
         "get_related_symbols",
         "get_type"
       ],
-      "total_ms": 0.16
+      "total_ms": 0.09
     }
   ]
 }

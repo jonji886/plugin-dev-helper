@@ -1,0 +1,485 @@
+[
+  {
+    "run_id": "codebuddy-20260921-155307-mcp",
+    "agent": "codebuddy",
+    "condition": "with_mcp",
+    "per_task": [
+      {
+        "task_id": "T01",
+        "category": "api_lookup",
+        "accepted": true,
+        "call_count": 1,
+        "tool_selection": {
+          "precision": 1.0,
+          "recall": 0.5,
+          "f1": 0.6667,
+          "missing_tools": [
+            "search_docs"
+          ],
+          "extra_tools": []
+        },
+        "symbol_coverage": 1.0,
+        "missing_symbols": [],
+        "redundant_call_rate": 0.0,
+        "redundant_calls": 0,
+        "sequence": {
+          "rate": 1.0,
+          "checks": []
+        },
+        "abstention": {
+          "required": false,
+          "abstained": false,
+          "passed": true
+        }
+      }
+    ],
+    "unknown_task_ids": [],
+    "summary": {
+      "total_tasks": 1,
+      "accepted_tasks": 1,
+      "tool_selection_precision": 1.0,
+      "tool_selection_recall": 0.5,
+      "tool_selection_f1": 0.6667,
+      "symbol_coverage": 1.0,
+      "redundant_call_rate": 0.0,
+      "sequence_compliance": 1.0,
+      "abstention_correctness": 1.0,
+      "avg_calls_per_task": 1.0
+    }
+  },
+  {
+    "run_id": "codebuddy-20260921-155307-mcp",
+    "agent": "codebuddy",
+    "condition": "with_mcp",
+    "per_task": [
+      {
+        "task_id": "T02",
+        "category": "type_construction",
+        "accepted": true,
+        "call_count": 3,
+        "tool_selection": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "missing_tools": [],
+          "extra_tools": []
+        },
+        "symbol_coverage": 1.0,
+        "missing_symbols": [],
+        "redundant_call_rate": 0.0,
+        "redundant_calls": 0,
+        "sequence": {
+          "rate": 1.0,
+          "checks": []
+        },
+        "abstention": {
+          "required": false,
+          "abstained": false,
+          "passed": true
+        }
+      }
+    ],
+    "unknown_task_ids": [],
+    "summary": {
+      "total_tasks": 1,
+      "accepted_tasks": 1,
+      "tool_selection_precision": 1.0,
+      "tool_selection_recall": 1.0,
+      "tool_selection_f1": 1.0,
+      "symbol_coverage": 1.0,
+      "redundant_call_rate": 0.0,
+      "sequence_compliance": 1.0,
+      "abstention_correctness": 1.0,
+      "avg_calls_per_task": 3.0
+    }
+  },
+  {
+    "run_id": "codebuddy-20260921-155307-mcp",
+    "agent": "codebuddy",
+    "condition": "with_mcp",
+    "per_task": [
+      {
+        "task_id": "T03",
+        "category": "enum_usage",
+        "accepted": true,
+        "call_count": 3,
+        "tool_selection": {
+          "precision": 0.5,
+          "recall": 0.5,
+          "f1": 0.5,
+          "missing_tools": [
+            "get_type"
+          ],
+          "extra_tools": [
+            "search_docs"
+          ]
+        },
+        "symbol_coverage": 0.5,
+        "missing_symbols": [
+          "IDP.Custom.Common.ToolType.Wardrobe"
+        ],
+        "redundant_call_rate": 0.0,
+        "redundant_calls": 0,
+        "sequence": {
+          "rate": 1.0,
+          "checks": []
+        },
+        "abstention": {
+          "required": false,
+          "abstained": false,
+          "passed": true
+        }
+      }
+    ],
+    "unknown_task_ids": [],
+    "summary": {
+      "total_tasks": 1,
+      "accepted_tasks": 1,
+      "tool_selection_precision": 0.5,
+      "tool_selection_recall": 0.5,
+      "tool_selection_f1": 0.5,
+      "symbol_coverage": 0.5,
+      "redundant_call_rate": 0.0,
+      "sequence_compliance": 1.0,
+      "abstention_correctness": 1.0,
+      "avg_calls_per_task": 3.0
+    }
+  },
+  {
+    "run_id": "codebuddy-20260921-155307-mcp",
+    "agent": "codebuddy",
+    "condition": "with_mcp",
+    "per_task": [
+      {
+        "task_id": "T04",
+        "category": "ui_vm_comm",
+        "accepted": true,
+        "call_count": 3,
+        "tool_selection": {
+          "precision": 1.0,
+          "recall": 0.5,
+          "f1": 0.6667,
+          "missing_tools": [
+            "get_type"
+          ],
+          "extra_tools": []
+        },
+        "symbol_coverage": 1.0,
+        "missing_symbols": [],
+        "redundant_call_rate": 0.0,
+        "redundant_calls": 0,
+        "sequence": {
+          "rate": 1.0,
+          "checks": []
+        },
+        "abstention": {
+          "required": false,
+          "abstained": false,
+          "passed": true
+        }
+      }
+    ],
+    "unknown_task_ids": [],
+    "summary": {
+      "total_tasks": 1,
+      "accepted_tasks": 1,
+      "tool_selection_precision": 1.0,
+      "tool_selection_recall": 0.5,
+      "tool_selection_f1": 0.6667,
+      "symbol_coverage": 1.0,
+      "redundant_call_rate": 0.0,
+      "sequence_compliance": 1.0,
+      "abstention_correctness": 1.0,
+      "avg_calls_per_task": 3.0
+    }
+  },
+  {
+    "run_id": "codebuddy-20260921-155307-mcp",
+    "agent": "codebuddy",
+    "condition": "with_mcp",
+    "per_task": [
+      {
+        "task_id": "T05",
+        "category": "event_listening",
+        "accepted": true,
+        "call_count": 3,
+        "tool_selection": {
+          "precision": 1.0,
+          "recall": 0.5,
+          "f1": 0.6667,
+          "missing_tools": [
+            "get_type"
+          ],
+          "extra_tools": []
+        },
+        "symbol_coverage": 1.0,
+        "missing_symbols": [],
+        "redundant_call_rate": 0.0,
+        "redundant_calls": 0,
+        "sequence": {
+          "rate": 1.0,
+          "checks": []
+        },
+        "abstention": {
+          "required": false,
+          "abstained": false,
+          "passed": true
+        }
+      }
+    ],
+    "unknown_task_ids": [],
+    "summary": {
+      "total_tasks": 1,
+      "accepted_tasks": 1,
+      "tool_selection_precision": 1.0,
+      "tool_selection_recall": 0.5,
+      "tool_selection_f1": 0.6667,
+      "symbol_coverage": 1.0,
+      "redundant_call_rate": 0.0,
+      "sequence_compliance": 1.0,
+      "abstention_correctness": 1.0,
+      "avg_calls_per_task": 3.0
+    }
+  },
+  {
+    "run_id": "codebuddy-20260921-155307-mcp",
+    "agent": "codebuddy",
+    "condition": "with_mcp",
+    "per_task": [
+      {
+        "task_id": "T06",
+        "category": "modify_existing",
+        "accepted": true,
+        "call_count": 4,
+        "tool_selection": {
+          "precision": 0.6667,
+          "recall": 1.0,
+          "f1": 0.8,
+          "missing_tools": [],
+          "extra_tools": [
+            "search_docs"
+          ]
+        },
+        "symbol_coverage": 1.0,
+        "missing_symbols": [],
+        "redundant_call_rate": 0.0,
+        "redundant_calls": 0,
+        "sequence": {
+          "rate": 1.0,
+          "checks": []
+        },
+        "abstention": {
+          "required": false,
+          "abstained": false,
+          "passed": true
+        }
+      }
+    ],
+    "unknown_task_ids": [],
+    "summary": {
+      "total_tasks": 1,
+      "accepted_tasks": 1,
+      "tool_selection_precision": 0.6667,
+      "tool_selection_recall": 1.0,
+      "tool_selection_f1": 0.8,
+      "symbol_coverage": 1.0,
+      "redundant_call_rate": 0.0,
+      "sequence_compliance": 1.0,
+      "abstention_correctness": 1.0,
+      "avg_calls_per_task": 4.0
+    }
+  },
+  {
+    "run_id": "codebuddy-20260921-155307-mcp",
+    "agent": "codebuddy",
+    "condition": "with_mcp",
+    "per_task": [
+      {
+        "task_id": "T07",
+        "category": "fix_wrong_api",
+        "accepted": true,
+        "call_count": 1,
+        "tool_selection": {
+          "precision": 1.0,
+          "recall": 0.3333,
+          "f1": 0.5,
+          "missing_tools": [
+            "search_docs",
+            "validate_api_usage"
+          ],
+          "extra_tools": []
+        },
+        "symbol_coverage": 1.0,
+        "missing_symbols": [],
+        "redundant_call_rate": 0.0,
+        "redundant_calls": 0,
+        "sequence": {
+          "rate": 1.0,
+          "checks": []
+        },
+        "abstention": {
+          "required": false,
+          "abstained": false,
+          "passed": true
+        }
+      }
+    ],
+    "unknown_task_ids": [],
+    "summary": {
+      "total_tasks": 1,
+      "accepted_tasks": 1,
+      "tool_selection_precision": 1.0,
+      "tool_selection_recall": 0.3333,
+      "tool_selection_f1": 0.5,
+      "symbol_coverage": 1.0,
+      "redundant_call_rate": 0.0,
+      "sequence_compliance": 1.0,
+      "abstention_correctness": 1.0,
+      "avg_calls_per_task": 1.0
+    }
+  },
+  {
+    "run_id": "codebuddy-20260921-155307-mcp",
+    "agent": "codebuddy",
+    "condition": "with_mcp",
+    "per_task": [
+      {
+        "task_id": "T08",
+        "category": "fix_wrong_params",
+        "accepted": true,
+        "call_count": 2,
+        "tool_selection": {
+          "precision": 1.0,
+          "recall": 0.6667,
+          "f1": 0.8,
+          "missing_tools": [
+            "validate_api_usage"
+          ],
+          "extra_tools": []
+        },
+        "symbol_coverage": 1.0,
+        "missing_symbols": [],
+        "redundant_call_rate": 0.0,
+        "redundant_calls": 0,
+        "sequence": {
+          "rate": 1.0,
+          "checks": []
+        },
+        "abstention": {
+          "required": false,
+          "abstained": false,
+          "passed": true
+        }
+      }
+    ],
+    "unknown_task_ids": [],
+    "summary": {
+      "total_tasks": 1,
+      "accepted_tasks": 1,
+      "tool_selection_precision": 1.0,
+      "tool_selection_recall": 0.6667,
+      "tool_selection_f1": 0.8,
+      "symbol_coverage": 1.0,
+      "redundant_call_rate": 0.0,
+      "sequence_compliance": 1.0,
+      "abstention_correctness": 1.0,
+      "avg_calls_per_task": 2.0
+    }
+  },
+  {
+    "run_id": "codebuddy-20260921-155307-mcp",
+    "agent": "codebuddy",
+    "condition": "with_mcp",
+    "per_task": [
+      {
+        "task_id": "T09",
+        "category": "reject_hallucination",
+        "accepted": true,
+        "call_count": 2,
+        "tool_selection": {
+          "precision": 1.0,
+          "recall": 0.5,
+          "f1": 0.6667,
+          "missing_tools": [
+            "search_docs"
+          ],
+          "extra_tools": []
+        },
+        "symbol_coverage": 1.0,
+        "missing_symbols": [],
+        "redundant_call_rate": 0.0,
+        "redundant_calls": 0,
+        "sequence": {
+          "rate": 1.0,
+          "checks": []
+        },
+        "abstention": {
+          "required": true,
+          "abstained": true,
+          "passed": true
+        }
+      }
+    ],
+    "unknown_task_ids": [],
+    "summary": {
+      "total_tasks": 1,
+      "accepted_tasks": 1,
+      "tool_selection_precision": 1.0,
+      "tool_selection_recall": 0.5,
+      "tool_selection_f1": 0.6667,
+      "symbol_coverage": 1.0,
+      "redundant_call_rate": 0.0,
+      "sequence_compliance": 1.0,
+      "abstention_correctness": 1.0,
+      "avg_calls_per_task": 2.0
+    }
+  },
+  {
+    "run_id": "codebuddy-20260921-155307-mcp",
+    "agent": "codebuddy",
+    "condition": "with_mcp",
+    "per_task": [
+      {
+        "task_id": "T10",
+        "category": "insufficient_info",
+        "accepted": true,
+        "call_count": 3,
+        "tool_selection": {
+          "precision": 0.6667,
+          "recall": 1.0,
+          "f1": 0.8,
+          "missing_tools": [],
+          "extra_tools": [
+            "search_docs"
+          ]
+        },
+        "symbol_coverage": 1.0,
+        "missing_symbols": [],
+        "redundant_call_rate": 0.0,
+        "redundant_calls": 0,
+        "sequence": {
+          "rate": 1.0,
+          "checks": []
+        },
+        "abstention": {
+          "required": false,
+          "abstained": false,
+          "passed": true
+        }
+      }
+    ],
+    "unknown_task_ids": [],
+    "summary": {
+      "total_tasks": 1,
+      "accepted_tasks": 1,
+      "tool_selection_precision": 0.6667,
+      "tool_selection_recall": 1.0,
+      "tool_selection_f1": 0.8,
+      "symbol_coverage": 1.0,
+      "redundant_call_rate": 0.0,
+      "sequence_compliance": 1.0,
+      "abstention_correctness": 1.0,
+      "avg_calls_per_task": 3.0
+    }
+  }
+]

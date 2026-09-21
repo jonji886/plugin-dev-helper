@@ -4,7 +4,7 @@
     "mode": "baseline",
     "run_index": 0,
     "success": false,
-    "latency_ms": 61.29288673400879,
+    "latency_ms": 205.96671104431152,
     "tokens": "UNAVAILABLE",
     "failure_type": "ACCEPTANCE_FAIL",
     "first_pass": false,
@@ -13,14 +13,18 @@
     "hallucination": false,
     "abstained": false,
     "abstain_expected": false,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T02",
     "mode": "baseline",
     "run_index": 0,
     "success": false,
-    "latency_ms": 13.051986694335938,
+    "latency_ms": 63.92407417297363,
     "tokens": "UNAVAILABLE",
     "failure_type": "ACCEPTANCE_FAIL",
     "first_pass": false,
@@ -29,14 +33,18 @@
     "hallucination": false,
     "abstained": false,
     "abstain_expected": false,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T03",
     "mode": "baseline",
     "run_index": 0,
     "success": false,
-    "latency_ms": 10.563850402832031,
+    "latency_ms": 13.093948364257812,
     "tokens": "UNAVAILABLE",
     "failure_type": "ACCEPTANCE_FAIL",
     "first_pass": false,
@@ -45,14 +53,18 @@
     "hallucination": false,
     "abstained": false,
     "abstain_expected": false,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T04",
     "mode": "baseline",
     "run_index": 0,
     "success": false,
-    "latency_ms": 9.740114212036133,
+    "latency_ms": 16.003847122192383,
     "tokens": "UNAVAILABLE",
     "failure_type": "ACCEPTANCE_FAIL",
     "first_pass": false,
@@ -61,14 +73,18 @@
     "hallucination": false,
     "abstained": false,
     "abstain_expected": false,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T05",
     "mode": "baseline",
     "run_index": 0,
     "success": false,
-    "latency_ms": 8.337020874023438,
+    "latency_ms": 13.94796371459961,
     "tokens": "UNAVAILABLE",
     "failure_type": "ACCEPTANCE_FAIL",
     "first_pass": false,
@@ -77,14 +93,18 @@
     "hallucination": false,
     "abstained": false,
     "abstain_expected": false,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T06",
     "mode": "baseline",
     "run_index": 0,
     "success": true,
-    "latency_ms": 34.56687927246094,
+    "latency_ms": 44.0831184387207,
     "tokens": "UNAVAILABLE",
     "failure_type": "",
     "first_pass": true,
@@ -93,14 +113,18 @@
     "hallucination": false,
     "abstained": false,
     "abstain_expected": false,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T07",
     "mode": "baseline",
     "run_index": 0,
     "success": false,
-    "latency_ms": 13.442754745483398,
+    "latency_ms": 27.376890182495117,
     "tokens": "UNAVAILABLE",
     "failure_type": "API_HALLUCINATION",
     "first_pass": false,
@@ -122,14 +146,18 @@
         "suggested_fix": "IDP.Miniapp.exit; IDP.Miniapp.view; IDP.Miniapp.getUploadedDataAsync",
         "repairable": true
       }
-    ]
+    ],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T08",
     "mode": "baseline",
     "run_index": 0,
     "success": false,
-    "latency_ms": 14.48202133178711,
+    "latency_ms": 53.785085678100586,
     "tokens": "UNAVAILABLE",
     "failure_type": "API_HALLUCINATION",
     "first_pass": false,
@@ -151,14 +179,18 @@
         "suggested_fix": "data",
         "repairable": true
       }
-    ]
+    ],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T09",
     "mode": "baseline",
     "run_index": 0,
     "success": true,
-    "latency_ms": 13.184070587158203,
+    "latency_ms": 12.974977493286133,
     "tokens": "UNAVAILABLE",
     "failure_type": "",
     "first_pass": true,
@@ -167,14 +199,18 @@
     "hallucination": false,
     "abstained": true,
     "abstain_expected": true,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T10",
     "mode": "baseline",
     "run_index": 0,
     "success": false,
-    "latency_ms": 7.061004638671875,
+    "latency_ms": 16.01719856262207,
     "tokens": "UNAVAILABLE",
     "failure_type": "ACCEPTANCE_FAIL",
     "first_pass": false,
@@ -183,14 +219,18 @@
     "hallucination": false,
     "abstained": true,
     "abstain_expected": true,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T01",
     "mode": "mcp",
     "run_index": 0,
     "success": true,
-    "latency_ms": 9.701251983642578,
+    "latency_ms": 21.83985710144043,
     "tokens": "UNAVAILABLE",
     "failure_type": "",
     "first_pass": true,
@@ -199,14 +239,18 @@
     "hallucination": false,
     "abstained": false,
     "abstain_expected": false,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T02",
     "mode": "mcp",
     "run_index": 0,
     "success": true,
-    "latency_ms": 8.095026016235352,
+    "latency_ms": 26.85070037841797,
     "tokens": "UNAVAILABLE",
     "failure_type": "",
     "first_pass": true,
@@ -215,14 +259,18 @@
     "hallucination": false,
     "abstained": false,
     "abstain_expected": false,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T03",
     "mode": "mcp",
     "run_index": 0,
     "success": true,
-    "latency_ms": 12.48788833618164,
+    "latency_ms": 18.709897994995117,
     "tokens": "UNAVAILABLE",
     "failure_type": "",
     "first_pass": true,
@@ -231,14 +279,18 @@
     "hallucination": false,
     "abstained": false,
     "abstain_expected": false,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T04",
     "mode": "mcp",
     "run_index": 0,
     "success": true,
-    "latency_ms": 10.88094711303711,
+    "latency_ms": 18.91779899597168,
     "tokens": "UNAVAILABLE",
     "failure_type": "",
     "first_pass": true,
@@ -247,14 +299,18 @@
     "hallucination": false,
     "abstained": false,
     "abstain_expected": false,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T05",
     "mode": "mcp",
     "run_index": 0,
     "success": true,
-    "latency_ms": 8.501052856445312,
+    "latency_ms": 22.2780704498291,
     "tokens": "UNAVAILABLE",
     "failure_type": "",
     "first_pass": true,
@@ -263,14 +319,18 @@
     "hallucination": false,
     "abstained": false,
     "abstain_expected": false,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T06",
     "mode": "mcp",
     "run_index": 0,
     "success": true,
-    "latency_ms": 9.739160537719727,
+    "latency_ms": 19.758224487304688,
     "tokens": "UNAVAILABLE",
     "failure_type": "",
     "first_pass": true,
@@ -279,14 +339,18 @@
     "hallucination": false,
     "abstained": false,
     "abstain_expected": false,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T07",
     "mode": "mcp",
     "run_index": 0,
     "success": true,
-    "latency_ms": 7.539987564086914,
+    "latency_ms": 19.797086715698242,
     "tokens": "UNAVAILABLE",
     "failure_type": "",
     "first_pass": true,
@@ -295,14 +359,18 @@
     "hallucination": false,
     "abstained": false,
     "abstain_expected": false,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T08",
     "mode": "mcp",
     "run_index": 0,
     "success": true,
-    "latency_ms": 11.136054992675781,
+    "latency_ms": 17.71402359008789,
     "tokens": "UNAVAILABLE",
     "failure_type": "",
     "first_pass": true,
@@ -311,14 +379,18 @@
     "hallucination": false,
     "abstained": false,
     "abstain_expected": false,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T09",
     "mode": "mcp",
     "run_index": 0,
     "success": true,
-    "latency_ms": 16.199827194213867,
+    "latency_ms": 31.173229217529297,
     "tokens": "UNAVAILABLE",
     "failure_type": "",
     "first_pass": true,
@@ -327,14 +399,18 @@
     "hallucination": false,
     "abstained": true,
     "abstain_expected": true,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   },
   {
     "case_id": "T10",
     "mode": "mcp",
     "run_index": 0,
     "success": true,
-    "latency_ms": 14.277219772338867,
+    "latency_ms": 21.21901512145996,
     "tokens": "UNAVAILABLE",
     "failure_type": "",
     "first_pass": true,
@@ -343,6 +419,10 @@
     "hallucination": false,
     "abstained": true,
     "abstain_expected": true,
-    "issues": []
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance"
+    }
   }
 ]

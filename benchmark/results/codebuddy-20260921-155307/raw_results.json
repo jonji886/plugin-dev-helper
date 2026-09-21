@@ -1,0 +1,819 @@
+[
+  {
+    "case_id": "T01",
+    "mode": "baseline",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": false,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/baseline/T01-r0",
+      "has_trace": false
+    }
+  },
+  {
+    "case_id": "T02",
+    "mode": "baseline",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": false,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/baseline/T02-r0",
+      "has_trace": false
+    }
+  },
+  {
+    "case_id": "T03",
+    "mode": "baseline",
+    "run_index": 0,
+    "success": false,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "API_HALLUCINATION",
+    "first_pass": false,
+    "api_correct": false,
+    "constraint_violation": false,
+    "hallucination": true,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [
+      {
+        "issue_id": "API-UNKNOWN_API",
+        "severity": "HIGH",
+        "category": "API",
+        "code": "API_UNKNOWN_API",
+        "message": "`IDP.Tool.getToolType` 不存在于当前知识库；`IDP` 有效，但 `Tool` 未找到。",
+        "file": "src/vm.ts",
+        "line": 3,
+        "evidence": "symbol=IDP.Tool.getToolType",
+        "suggested_fix": "IDP.EventTypes; IDP.EventTypes; IDP.EventTypes",
+        "repairable": true
+      },
+      {
+        "issue_id": "API-UNKNOWN_API",
+        "severity": "HIGH",
+        "category": "API",
+        "code": "API_UNKNOWN_API",
+        "message": "`IDP.ToolType.Wardrobe` 不存在于当前知识库；`IDP` 有效，但 `ToolType` 未找到。",
+        "file": "src/vm.ts",
+        "line": 3,
+        "evidence": "symbol=IDP.ToolType.Wardrobe",
+        "suggested_fix": "",
+        "repairable": true
+      }
+    ],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": false,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/baseline/T03-r0",
+      "has_trace": false
+    }
+  },
+  {
+    "case_id": "T04",
+    "mode": "baseline",
+    "run_index": 0,
+    "success": false,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "RULE_VIOLATION",
+    "first_pass": false,
+    "api_correct": true,
+    "constraint_violation": true,
+    "hallucination": false,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [
+      {
+        "issue_id": "RULE-KJL-COMM-002",
+        "severity": "HIGH",
+        "category": "RULE",
+        "code": "KJL-COMM-002",
+        "message": "存在通信行为但未使用合法方式：`defaultFrame.postMessage` 未找到",
+        "file": "src/vm.ts",
+        "line": 0,
+        "evidence": "VM 返回 UI 应使用 IDP 插件 API 的 defaultFrame.postMessage。",
+        "suggested_fix": "使用 IDP.Miniapp.view.defaultFrame.postMessage 将结果返回 UI。",
+        "repairable": true
+      }
+    ],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": false,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/baseline/T04-r0",
+      "has_trace": false
+    }
+  },
+  {
+    "case_id": "T05",
+    "mode": "baseline",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": false,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/baseline/T05-r0",
+      "has_trace": false
+    }
+  },
+  {
+    "case_id": "T06",
+    "mode": "baseline",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": false,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/baseline/T06-r0",
+      "has_trace": false
+    }
+  },
+  {
+    "case_id": "T07",
+    "mode": "baseline",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": false,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/baseline/T07-r0",
+      "has_trace": false
+    }
+  },
+  {
+    "case_id": "T08",
+    "mode": "baseline",
+    "run_index": 0,
+    "success": false,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "API_HALLUCINATION",
+    "first_pass": false,
+    "api_correct": false,
+    "constraint_violation": false,
+    "hallucination": true,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [
+      {
+        "issue_id": "API-UNKNOWN_PARAMETER",
+        "severity": "HIGH",
+        "category": "API",
+        "code": "API_UNKNOWN_PARAMETER",
+        "message": "`dat` 不是 `MiniappUploadDataOption` 的已知字段。",
+        "file": "src/vm.ts",
+        "line": 3,
+        "evidence": "symbol=IDP.Miniapp.uploadDataAsync",
+        "suggested_fix": "data",
+        "repairable": true
+      }
+    ],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": false,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/baseline/T08-r0",
+      "has_trace": false
+    }
+  },
+  {
+    "case_id": "T09",
+    "mode": "baseline",
+    "run_index": 0,
+    "success": false,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "API_HALLUCINATION",
+    "first_pass": false,
+    "api_correct": false,
+    "constraint_violation": false,
+    "hallucination": true,
+    "abstained": false,
+    "abstain_expected": true,
+    "issues": [
+      {
+        "issue_id": "API-UNKNOWN_API",
+        "severity": "HIGH",
+        "category": "API",
+        "code": "API_UNKNOWN_API",
+        "message": "`IDP.Miniapp.closeMiniapp` 不存在于当前知识库；`IDP.Miniapp` 有效，但 `closeMiniapp` 未找到。",
+        "file": "src/vm.ts",
+        "line": 3,
+        "evidence": "symbol=IDP.Miniapp.closeMiniapp",
+        "suggested_fix": "IDP.Miniapp.exit; IDP.Miniapp.view; IDP.Miniapp.uploadDataAsync",
+        "repairable": true
+      }
+    ],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": false,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/baseline/T09-r0",
+      "has_trace": false
+    }
+  },
+  {
+    "case_id": "T10",
+    "mode": "baseline",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": true,
+    "abstain_expected": true,
+    "issues": [],
+    "trace_metrics": {},
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": false,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/baseline/T10-r0",
+      "has_trace": false
+    }
+  },
+  {
+    "case_id": "T01",
+    "mode": "mcp",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [],
+    "trace_metrics": {
+      "task_id": "T01",
+      "category": "api_lookup",
+      "accepted": true,
+      "call_count": 1,
+      "tool_selection": {
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "missing_tools": [
+          "search_docs"
+        ],
+        "extra_tools": []
+      },
+      "symbol_coverage": 1.0,
+      "missing_symbols": [],
+      "redundant_call_rate": 0.0,
+      "redundant_calls": 0,
+      "sequence": {
+        "rate": 1.0,
+        "checks": []
+      },
+      "abstention": {
+        "required": false,
+        "abstained": false,
+        "passed": true
+      }
+    },
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": true,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/mcp/T01-r0",
+      "has_trace": true
+    }
+  },
+  {
+    "case_id": "T02",
+    "mode": "mcp",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [],
+    "trace_metrics": {
+      "task_id": "T02",
+      "category": "type_construction",
+      "accepted": true,
+      "call_count": 3,
+      "tool_selection": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "missing_tools": [],
+        "extra_tools": []
+      },
+      "symbol_coverage": 1.0,
+      "missing_symbols": [],
+      "redundant_call_rate": 0.0,
+      "redundant_calls": 0,
+      "sequence": {
+        "rate": 1.0,
+        "checks": []
+      },
+      "abstention": {
+        "required": false,
+        "abstained": false,
+        "passed": true
+      }
+    },
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": true,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/mcp/T02-r0",
+      "has_trace": true
+    }
+  },
+  {
+    "case_id": "T03",
+    "mode": "mcp",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [],
+    "trace_metrics": {
+      "task_id": "T03",
+      "category": "enum_usage",
+      "accepted": true,
+      "call_count": 3,
+      "tool_selection": {
+        "precision": 0.5,
+        "recall": 0.5,
+        "f1": 0.5,
+        "missing_tools": [
+          "get_type"
+        ],
+        "extra_tools": [
+          "search_docs"
+        ]
+      },
+      "symbol_coverage": 0.5,
+      "missing_symbols": [
+        "IDP.Custom.Common.ToolType.Wardrobe"
+      ],
+      "redundant_call_rate": 0.0,
+      "redundant_calls": 0,
+      "sequence": {
+        "rate": 1.0,
+        "checks": []
+      },
+      "abstention": {
+        "required": false,
+        "abstained": false,
+        "passed": true
+      }
+    },
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": true,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/mcp/T03-r0",
+      "has_trace": true
+    }
+  },
+  {
+    "case_id": "T04",
+    "mode": "mcp",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [],
+    "trace_metrics": {
+      "task_id": "T04",
+      "category": "ui_vm_comm",
+      "accepted": true,
+      "call_count": 3,
+      "tool_selection": {
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "missing_tools": [
+          "get_type"
+        ],
+        "extra_tools": []
+      },
+      "symbol_coverage": 1.0,
+      "missing_symbols": [],
+      "redundant_call_rate": 0.0,
+      "redundant_calls": 0,
+      "sequence": {
+        "rate": 1.0,
+        "checks": []
+      },
+      "abstention": {
+        "required": false,
+        "abstained": false,
+        "passed": true
+      }
+    },
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": true,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/mcp/T04-r0",
+      "has_trace": true
+    }
+  },
+  {
+    "case_id": "T05",
+    "mode": "mcp",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [],
+    "trace_metrics": {
+      "task_id": "T05",
+      "category": "event_listening",
+      "accepted": true,
+      "call_count": 3,
+      "tool_selection": {
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "missing_tools": [
+          "get_type"
+        ],
+        "extra_tools": []
+      },
+      "symbol_coverage": 1.0,
+      "missing_symbols": [],
+      "redundant_call_rate": 0.0,
+      "redundant_calls": 0,
+      "sequence": {
+        "rate": 1.0,
+        "checks": []
+      },
+      "abstention": {
+        "required": false,
+        "abstained": false,
+        "passed": true
+      }
+    },
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": true,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/mcp/T05-r0",
+      "has_trace": true
+    }
+  },
+  {
+    "case_id": "T06",
+    "mode": "mcp",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [],
+    "trace_metrics": {
+      "task_id": "T06",
+      "category": "modify_existing",
+      "accepted": true,
+      "call_count": 4,
+      "tool_selection": {
+        "precision": 0.6667,
+        "recall": 1.0,
+        "f1": 0.8,
+        "missing_tools": [],
+        "extra_tools": [
+          "search_docs"
+        ]
+      },
+      "symbol_coverage": 1.0,
+      "missing_symbols": [],
+      "redundant_call_rate": 0.0,
+      "redundant_calls": 0,
+      "sequence": {
+        "rate": 1.0,
+        "checks": []
+      },
+      "abstention": {
+        "required": false,
+        "abstained": false,
+        "passed": true
+      }
+    },
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": true,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/mcp/T06-r0",
+      "has_trace": true
+    }
+  },
+  {
+    "case_id": "T07",
+    "mode": "mcp",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [],
+    "trace_metrics": {
+      "task_id": "T07",
+      "category": "fix_wrong_api",
+      "accepted": true,
+      "call_count": 1,
+      "tool_selection": {
+        "precision": 1.0,
+        "recall": 0.3333,
+        "f1": 0.5,
+        "missing_tools": [
+          "search_docs",
+          "validate_api_usage"
+        ],
+        "extra_tools": []
+      },
+      "symbol_coverage": 1.0,
+      "missing_symbols": [],
+      "redundant_call_rate": 0.0,
+      "redundant_calls": 0,
+      "sequence": {
+        "rate": 1.0,
+        "checks": []
+      },
+      "abstention": {
+        "required": false,
+        "abstained": false,
+        "passed": true
+      }
+    },
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": true,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/mcp/T07-r0",
+      "has_trace": true
+    }
+  },
+  {
+    "case_id": "T08",
+    "mode": "mcp",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": false,
+    "abstain_expected": false,
+    "issues": [],
+    "trace_metrics": {
+      "task_id": "T08",
+      "category": "fix_wrong_params",
+      "accepted": true,
+      "call_count": 2,
+      "tool_selection": {
+        "precision": 1.0,
+        "recall": 0.6667,
+        "f1": 0.8,
+        "missing_tools": [
+          "validate_api_usage"
+        ],
+        "extra_tools": []
+      },
+      "symbol_coverage": 1.0,
+      "missing_symbols": [],
+      "redundant_call_rate": 0.0,
+      "redundant_calls": 0,
+      "sequence": {
+        "rate": 1.0,
+        "checks": []
+      },
+      "abstention": {
+        "required": false,
+        "abstained": false,
+        "passed": true
+      }
+    },
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": true,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/mcp/T08-r0",
+      "has_trace": true
+    }
+  },
+  {
+    "case_id": "T09",
+    "mode": "mcp",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": true,
+    "abstain_expected": true,
+    "issues": [],
+    "trace_metrics": {
+      "task_id": "T09",
+      "category": "reject_hallucination",
+      "accepted": true,
+      "call_count": 2,
+      "tool_selection": {
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "missing_tools": [
+          "search_docs"
+        ],
+        "extra_tools": []
+      },
+      "symbol_coverage": 1.0,
+      "missing_symbols": [],
+      "redundant_call_rate": 0.0,
+      "redundant_calls": 0,
+      "sequence": {
+        "rate": 1.0,
+        "checks": []
+      },
+      "abstention": {
+        "required": true,
+        "abstained": true,
+        "passed": true
+      }
+    },
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": true,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/mcp/T09-r0",
+      "has_trace": true
+    }
+  },
+  {
+    "case_id": "T10",
+    "mode": "mcp",
+    "run_index": 0,
+    "success": true,
+    "latency_ms": 0.0,
+    "tokens": "UNAVAILABLE",
+    "failure_type": "",
+    "first_pass": true,
+    "api_correct": true,
+    "constraint_violation": false,
+    "hallucination": false,
+    "abstained": true,
+    "abstain_expected": true,
+    "issues": [],
+    "trace_metrics": {
+      "task_id": "T10",
+      "category": "insufficient_info",
+      "accepted": true,
+      "call_count": 3,
+      "tool_selection": {
+        "precision": 0.6667,
+        "recall": 1.0,
+        "f1": 0.8,
+        "missing_tools": [],
+        "extra_tools": [
+          "search_docs"
+        ]
+      },
+      "symbol_coverage": 1.0,
+      "missing_symbols": [],
+      "redundant_call_rate": 0.0,
+      "redundant_calls": 0,
+      "sequence": {
+        "rate": 1.0,
+        "checks": []
+      },
+      "abstention": {
+        "required": false,
+        "abstained": false,
+        "passed": true
+      }
+    },
+    "extra": {
+      "first_pass_basis": "final_acceptance",
+      "mcp_enabled": true,
+      "manual_execution": true,
+      "workspace": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/mcp/T10-r0",
+      "has_trace": true
+    }
+  }
+]
