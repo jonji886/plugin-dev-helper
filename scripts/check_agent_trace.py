@@ -51,18 +51,37 @@ def call_key(call: dict) -> tuple[str, str]:
 
 
 def score_task(task: dict, trace_task: dict) -> dict:
-    expected_tools = set(task.get("mcp_tools_expected", []))
+    tool_exp = task.get("tool_expectation") or {}
+    # 向后兼容：未声明 tool_expectation 时从 mcp_tools_expected 降级推导
+    required_tools = set(tool_exp.get("required_tools") or task.get("mcp_tools_expected", []))
+    optional_tools = set(tool_exp.get("optional_tools", []))
+    forbidden_tools = set(tool_exp.get("forbidden_tools", []))
+    acceptable_sets = tool_exp.get("acceptable_tool_sets", []) or []
     reference_symbols = set(task.get("reference_symbols", []))
     calls: list[dict] = trace_task.get("calls", []) or []
     used_tools = {call.get("tool", "") for call in calls if call.get("tool")}
+    expected_for_precision = required_tools | optional_tools
 
     # ---- 工具选择 ----
-    hits = expected_tools & used_tools
+    # 核心原则：Task Outcome > Prescribed Tool Path。precision 仅惩罚「超出 required∪optional」
+    # 的调用；recall 仅考核 required 工具是否被覆盖。高效 Agent 用更少工具完成不应被惩罚。
+    hits = expected_for_precision & used_tools
     precision = len(hits) / len(used_tools) if used_tools else 0.0
-    recall = len(hits) / len(expected_tools) if expected_tools else 0.0
+    recall = len(required_tools & used_tools) / len(required_tools) if required_tools else 1.0
     f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
-    missing_tools = sorted(expected_tools - used_tools)
-    extra_tools = sorted(used_tools - expected_tools)
+    missing_tools = sorted(required_tools - used_tools)
+    extra_tools = sorted(used_tools - expected_for_precision)
+
+    # ---- 工具路径合法性（独立于 Task 成败）----
+    required_satisfied = required_tools.issubset(used_tools) if required_tools else True
+    if acceptable_sets:
+        acceptable_satisfied = required_satisfied or any(
+            set(s).issubset(used_tools) for s in acceptable_sets if s
+        )
+    else:
+        acceptable_satisfied = required_satisfied
+    forbidden_violation = bool(forbidden_tools & used_tools)
+    redundant_tools = sorted(used_tools - expected_for_precision)
 
     # ---- 符号覆盖 ----
     queried = set(trace_task.get("symbols_queried", []) or [])
@@ -122,6 +141,15 @@ def score_task(task: dict, trace_task: dict) -> dict:
             "f1": round(f1, 4),
             "missing_tools": missing_tools,
             "extra_tools": extra_tools,
+        },
+        "tool_expectation": {
+            "required_tools": sorted(required_tools),
+            "optional_tools": sorted(optional_tools),
+            "forbidden_tools": sorted(forbidden_tools),
+            "required_satisfied": bool(required_satisfied),
+            "acceptable_satisfied": bool(acceptable_satisfied),
+            "forbidden_violation": bool(forbidden_violation),
+            "redundant_tools": redundant_tools,
         },
         "symbol_coverage": round(symbol_coverage, 4),
         "missing_symbols": missing_symbols,

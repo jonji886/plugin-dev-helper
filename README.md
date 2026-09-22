@@ -24,7 +24,7 @@
 | RAG | 语义检索（Chroma + `all-MiniLM-L6-v2`）+ 词法打分（hybrid），LangGraph 编排，**系统装配可验证 Citation** |
 | MCP | 9 个只读工具，供宿主 IDE / Coding Agent 调用 SDK 查询与校验能力 |
 | Coding Agent | Project Validator（确定性）+ Task Runtime（状态机/Checkpoint/Resume/Artifact 版本）+ 有界 Repair Loop |
-| Reliability | LLM 输出不可信 → 确定性校验 → 通过 / 有界修复 / 拒绝，不把 Prompt 当可靠性边界 |
+| Reliability | LLM 输出不可信 → 瞬时错误 Retry + 确定性校验 + Build Gate → 通过 / 有界修复 / 拒绝，不把 Prompt 当可靠性边界 |
 | Evaluation | RAG Eval、Prompt A/B + 回归门禁、MCP L0/L1/L4、Agent 轨迹 L2、端到端 Benchmark L3 |
 | Observability | SQLite 请求指标（延迟 / token / 估算成本 / 模型路由）+ MCP telemetry + 可选 Langfuse |
 
@@ -87,7 +87,10 @@ CORS / OPTIONS 等宿主运行期行为静态不可判定，显式标记「需�
 
 ### 5. Task Runtime & Repair
 状态机驱动的任务生命周期（非法迁移显式报错）、SQLite 持久化、Checkpoint / Resume、Artifact 版本、
-失败分类（Taxonomy）与根因分析。修复为**有界**（默认 2 次）、证据驱动、修复后**重校验**。
+失败分类（Error Taxonomy：RETRYABLE / REPAIRABLE / NON_RETRYABLE）与根因分析。
+**Runtime Retry**（仅瞬时错误退避重试，权限/配置错误不重试，耗尽 `RETRY_EXHAUSTED`）、
+**Build Gate**（配置了 `build_cmd` 才真正执行构建；未配置 `BUILD_SKIPPED`）、
+修复为**有界**（默认 2 次）、证据驱动、修复后**重校验**。
 
 ### 6. Evaluation & Observability
 分层评测（见下方表格）+ SQLite 请求指标（延迟 / token / 估算成本 / 模型路由）+ MCP telemetry；Langfuse 可选。
@@ -113,10 +116,29 @@ MCP 把这套能力从「给人看的文本」变成「给 Agent 用的接口」
 ```text
 Agent / LLM output（不可信）
         ↓
+Retry Policy（瞬时错误退避重试，权限/配置错误不重试）
+        ↓
 Deterministic Validator（不依赖 LLM）
+   ├─ Static Validation（结构/契约/API/RULE）
+   └─ Build Gate（配置了 build 命令才真正执行；未配置=SKIPPED，不冒充通过）
         ↓
    PASS ──────── REPAIR（有界 2 次，重校验） ──────── REJECT / FAILED（记录根因）
+   RETRY_EXHAUSTED ──────────────────────── FAILED（记录 last_error / attempts）
 ```
+
+三条路径必须区分清楚，不可混用：
+
+- **Retry（重试）**：针对 Agent / Provider / MCP **瞬时**错误（超时、HTTP 429/5xx、临时网络抖动）。
+  依据 `ErrorTaxonomy` 分类：`RETRYABLE` 才退避重试；`NON_RETRYABLE`（401/403/权限/配置）**立即判失败，绝不重试**；
+  `REPAIRABLE`（API 幻觉、代码校验失败）交给 Repair Loop，不走 Retry。`RetryPolicy` 控制
+  `max_attempts`、指数退避（`backoff_base_seconds` × `backoff_factor^(attempt-1)`），耗尽后状态
+  `FAILED`、原因 `RETRY_EXHAUSTED`，并保留 `last_error / attempts / taxonomy` 与完整 Trace。
+- **Repair（修复）**：Agent 产物**首次生成成功但校验失败**时，依据 Validator Evidence 做有界修复，修复后**重校验**。
+- **Resume（恢复）**：进程崩溃后从最新 Checkpoint 继续，不重复已完成步骤。
+
+`Static Validation ≠ Build Verification`：Validator 的静态检查（含类型检查）通过，**不等于**构建真正通过。
+配置了 `build_cmd` 时，`TaskRuntime` 用 `subprocess` 真正执行构建（捕获 exit_code / stdout / stderr / duration /
+timeout），exit_code ≠ 0 即 `BUILD_FAILED` 并阻断交付；**未配置 build 命令时明确标记 `BUILD_SKIPPED`，绝不冒充编译通过**。
 
 > 不把 Prompt 当作可靠性边界。能确定性判定的都确定性判定；不能静态判定的（CORS / OPTIONS）
 > 明确标记为需宿主验证，而不是假装通过。
@@ -132,7 +154,7 @@ Deterministic Validator（不依赖 LLM）
 | MCP L0（工具级） | 契约 / 边界 / not_found / 降级 / 幂等（58 条） | 否 | 已执行，GATE PASS | `python scripts/run_mcp_eval.py` |
 | MCP L1（多轮序列） | 跨步骤引用 / 指代传递（6 条） | 否 | 已执行，6/6 | `python scripts/run_mcp_sequences.py` |
 | Agent L2（轨迹） | 工具选择 F1 / 符号覆盖 / 冗余率 / 序列 / 拒答 | 否 | 已有真实轨迹 | `python scripts/check_agent_trace.py benchmark/traces/<run>.json` |
-| Agent E2E L3 | Baseline vs MCP 端到端任务成功率 | 是（真实 Agent） | 已执行（manual, 1 run/task） | `python scripts/run_coding_agent_benchmark.py --driver codebuddy-manual --prepare/--import` |
+| Agent E2E L3 | Baseline vs MCP 端到端任务成功率 | 是（真实 Agent） | 已执行（manual, 1 run/task）；First Pass = UNAVAILABLE | `python scripts/run_coding_agent_benchmark.py --driver codebuddy-manual --prepare/--import` |
 | MCP L4（稳定性） | 多轮 × 工具 + 并发 + 故障恢复 + 状态泄漏 | 否 | 已执行，GATE PASS | `python scripts/check_mcp_stability.py` |
 
 核心成功判定使用**确定性指标**（Validator + acceptance + 轨迹评分），不以 LLM Judge 为准。
@@ -146,7 +168,10 @@ Deterministic Validator（不依赖 LLM）
 
 - **Agent**：CodeBuddy（本机 CLI 存在但无 headless 采集接口 → 采用 `manual / import` 驱动执行）
 - **设计**：同一 CodeBuddy、同一 task prompt、同一 fixture，唯一变量为是否可访问 Plugin Dev Helper MCP
-- **任务**：10 个 · **重复**：1 run/task（**不声称统计稳定**）
+- **Baseline 隔离**：baseline 工作区**不写** `.codebuddy/mcp.json`；import 时对每个 baseline run 做
+  `verify_isolation`（检查工作区是否意外含 MCP 配置），检测到 MCP 则该 run 标记 `INVALID_ENVIRONMENT`
+  并**排除出正式 Baseline 聚合**。无法检查（工作区缺失）时隔离状态 `UNAVAILABLE`。
+- **任务**：10 个 · **重复**：1 run/task（**不声称统计稳定**；协议支持 `--runs N`）
 - **Evaluator**：`ProjectValidator`（确定性）+ acceptance 字符串断言（非 LLM Judge）
 
 | Metric | Baseline | MCP | Delta |
@@ -156,7 +181,13 @@ Deterministic Validator（不依赖 LLM）
 | Hallucination Rate | 0.3 | 0.0 | -0.3 |
 | Constraint Violation Rate | 0.1 | 0.0 | -0.1 |
 | Abstention Correct Rate | 0.5 | 1.0 | +0.5 |
+| First Pass Success Rate | UNAVAILABLE | UNAVAILABLE | — |
 | Latency / Token | UNAVAILABLE | UNAVAILABLE | — |
+
+> **First Pass Success Rate = UNAVAILABLE**：当前 CodeBuddy 真实轨迹无法可靠区分「首次候选实现」
+> 与「后续自修复」，因此**不把 Final Success 当作 First Pass**，也**不伪造**该指标。
+> 这是诚实披露，不是能力缺陷。历史 run（`codebuddy-20260921-155307`）曾用旧语义
+> （`first_pass = final_acceptance`），其 metadata 已标注为 legacy，不篡改历史。
 
 典型差异：无 MCP 时 Agent 直接采信任务中的错误 API 名（T09 幻觉）、猜错命名空间（T03）、
 用真实但不适用的 API（T04）、沿用错误参数名（T08）；接入 MCP 后通过 `get_api` / `get_type`
@@ -205,7 +236,7 @@ MCP 客户端配置示例：
 **测试与评测**：
 
 ```bash
-.venv/bin/pytest -q                                            # 全部单元测试
+.venv/bin/pytest tests/ -q                                     # 全部单元测试（含 Runtime Retry / Build Gate / Benchmark 基础设施）
 .venv/bin/python scripts/run_mcp_eval.py                       # MCP L0 工具级
 .venv/bin/python scripts/run_mcp_sequences.py                  # MCP L1 多轮序列
 .venv/bin/python scripts/check_mcp_stability.py                # MCP L4 稳定性
@@ -260,10 +291,13 @@ deploy/              Docker 镜像与 Compose
 ## Limitations（真实限制）
 
 - Fixture 为最小 TypeScript 工程，不等价于真实宿主插件运行环境。
-- 真实 CodeBuddy Benchmark 为 **1 run/task（manual）**，样本量小，不代表统计稳定。
+- 真实 CodeBuddy Benchmark 为 **1 run/task（manual）**，样本量小，不代表统计稳定；协议支持 `--runs N`（推荐 3）。
+- **First Pass Success 因 CodeBuddy 轨迹无法区分首次候选实现与自修复，标记 UNAVAILABLE**，不做任何估算或伪造。
 - CodeBuddy 的 token / cost / latency 无法程序化获取，标记 `UNAVAILABLE`。
-- baseline 是否完全禁用全局 MCP 取决于 CodeBuddy 配置合并行为（已在 metadata 披露）。
-- `TaskRuntime` 的构建步骤在缺少 `tsc_cmd` 时不真正执行；acceptance 为字符串断言（注释中的被禁符号也会触发失败）。
+- baseline 是否完全禁用全局 MCP 取决于 CodeBuddy 配置合并行为（已在 metadata 披露；import 时做 `verify_isolation` 校验）。
+- `TaskRuntime` 的 Build Gate：**配置了 `build_cmd` 才真正执行构建**（exit_code ≠ 0 → `BUILD_FAILED` 阻断交付）；
+  **未配置时明确 `BUILD_SKIPPED`，不冒充编译通过**。当前公开 Benchmark 走 acceptance 字符串断言而非项目级 build 命令。
+- acceptance 为字符串断言（注释中的被禁符号也会触发失败）。
 - 检索词法侧为自研关键字打分（非 BM25）；`graph_builder/` 为空占位。
 - 无多租户鉴权与内容安全过滤；MCP 默认放开跨域。
 - 本项目为个人技术 POC，Rule Layer 不代表官方规范的完整或永久版本。

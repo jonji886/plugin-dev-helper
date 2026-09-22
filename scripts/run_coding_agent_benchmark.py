@@ -80,7 +80,9 @@ class CaseResult:
     latency_ms: float
     tokens: str = "UNAVAILABLE"
     failure_type: str = ""
-    first_pass: bool = False
+    # First Pass Success：首次候选实现未经修复即通过验收。当前 CodeBuddy trace 无法可靠区分
+    # 「首次候选实现」与「后续自修复」，因此统一为 UNAVAILABLE（None），不伪造成功率。
+    first_pass: bool | None = None
     api_correct: bool = True
     constraint_violation: bool = False
     hallucination: bool = False
@@ -253,23 +255,32 @@ def run_case(case: BenchmarkCase, driver, mode: str,
     _, _, derived = _evaluate_case(case, evaluator, workspace)
     return CaseResult(
         case_id=case.id, mode=mode, run_index=run_index, success=success, latency_ms=latency,
-        failure_type=derived["failure_type"], first_pass=success,
+        failure_type=derived["failure_type"], first_pass=None,
         api_correct=derived["api_correct"],
         constraint_violation=derived["constraint_violation"],
         hallucination=derived["hallucination"],
         abstained=derived["abstained"],
         abstain_expected=case.allow_abstention,
         issues=derived["issues"],
-        extra={"first_pass_basis": "final_acceptance"},
+        extra={"first_pass_basis": "unavailable", "first_pass_reason":
+               "CodeBuddy trace cannot reliably distinguish first-pass candidate from self-repair"},
     )
 
 
 def aggregate(results: list[CaseResult]) -> dict[str, Any]:
     n = len(results) or 1
     abstain = [r for r in results if r.abstain_expected]
+    # First Pass：仅当所有 run 都能可靠判断时才计算成功率；
+    # 任一 run 为 UNAVAILABLE（None）则整体报 UNAVAILABLE，绝不把「未知」当成 0%。
+    first_pass_known = [r.first_pass for r in results if r.first_pass is not None]
+    first_pass_rate: float | str
+    if not first_pass_known:
+        first_pass_rate = "UNAVAILABLE"
+    else:
+        first_pass_rate = round(sum(1 for v in first_pass_known if v) / len(first_pass_known), 4)
     return {
         "task_success_rate": round(sum(r.success for r in results) / n, 4),
-        "first_pass_success_rate": round(sum(r.first_pass for r in results) / n, 4),
+        "first_pass_success_rate": first_pass_rate,
         "api_correctness": round(sum(r.api_correct for r in results) / n, 4),
         "constraint_violation_rate": round(sum(r.constraint_violation for r in results) / n, 4),
         "hallucination_rate": round(sum(r.hallucination for r in results) / n, 4),
@@ -350,8 +361,9 @@ def run_codebuddy_prepare(args, cases, driver: CodeBuddyManualDriver, out_dir: P
                     "category": case.category,
                     "mode": mode,
                     "run_index": run_index,
-                    "workspace": str(workspace),
-                    "prompt_path": res.metadata.get("prompt_path"),
+                    # 持久化使用相对仓库根的路径，不暴露本机绝对路径
+                    "workspace": str(workspace.relative_to(ROOT)) if _is_relative_to(workspace, ROOT) else str(workspace),
+                    "prompt_path": _rel_if_possible(res.metadata.get("prompt_path"), ROOT),
                     "mcp_enabled": bool(res.metadata.get("mcp_enabled")),
                     "user_request": case.user_request,
                 })
@@ -399,6 +411,10 @@ def run_codebuddy_import(args, cases, evaluator, driver: CodeBuddyManualDriver,
         if case is None:
             continue
         workspace = Path(entry["workspace"])
+        if not workspace.is_absolute():
+            workspace = ROOT / workspace
+        # 隔离校验：验证 baseline 工作区确实未启用 MCP，mcp 工作区确实启用。
+        isolation = verify_isolation(entry, workspace, ROOT)
         # 读取 trace（若真实 Agent 已回灌）
         trace_raw = None
         trace_file = workspace / "trace.json"
@@ -429,10 +445,14 @@ def run_codebuddy_import(args, cases, evaluator, driver: CodeBuddyManualDriver,
                 from scripts.check_agent_trace import score_task
                 trace_metrics = score_task(raw_task, single["tasks"][0] if single["tasks"] else {})
 
+        # baseline 隔离被破坏（工作区含 MCP 配置）→ 该 run 不能计入正式 Baseline
+        environment_invalid = bool(
+            entry["mode"] != "mcp" and isolation.get("isolation_verified") is False
+        )
         res = CaseResult(
             case_id=case.id, mode=entry["mode"], run_index=entry["run_index"],
             success=success, latency_ms=0.0,
-            failure_type=derived["failure_type"], first_pass=success,
+            failure_type=derived["failure_type"], first_pass=None,
             api_correct=derived["api_correct"],
             constraint_violation=derived["constraint_violation"],
             hallucination=derived["hallucination"],
@@ -441,16 +461,24 @@ def run_codebuddy_import(args, cases, evaluator, driver: CodeBuddyManualDriver,
             issues=derived["issues"],
             trace_metrics=trace_metrics,
             extra={
-                "first_pass_basis": "final_acceptance",
+                "first_pass_basis": "unavailable",
+                "first_pass_reason":
+                    "CodeBuddy trace cannot reliably distinguish first-pass candidate from self-repair",
                 "mcp_enabled": bool(entry["mcp_enabled"]),
                 "manual_execution": True,
-                "workspace": str(workspace),
+                "workspace": str(workspace.relative_to(ROOT)) if _is_relative_to(workspace, ROOT) else str(workspace),
                 "has_trace": bool(trace_raw),
+                "isolation": isolation,
+                "environment_invalid": environment_invalid,
             },
         )
         all_results.append(res)
-        if entry["mode"] in per_mode:
+        # 仅当环境隔离有效时才纳入该模式的正式聚合
+        if entry["mode"] in per_mode and not environment_invalid:
             per_mode[entry["mode"]].append(res)
+        elif entry["mode"] in per_mode and environment_invalid:
+            # 仍保留 baseline 数据但标记，便于审计；不计入 success 聚合
+            pass
 
     # 落盘真实结果
     result_dir = out_dir / run_id
@@ -463,7 +491,8 @@ def run_codebuddy_import(args, cases, evaluator, driver: CodeBuddyManualDriver,
         summary[_m]["mean_latency_ms"] = "UNAVAILABLE"
     (result_dir / "aggregate.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    metadata = _build_metadata(args, driver, manifest, run_id, cases, summary)
+    metadata = _build_metadata(args, driver, manifest, run_id, cases, summary,
+                               results=all_results)
     (result_dir / "metadata.json").write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     _write_real_comparison(result_dir / "comparison.md", all_results, per_mode, summary, metadata)
@@ -502,22 +531,29 @@ def _run_trace_scorer(ts_dir: Path, result_dir: Path) -> None:
         print(f"[import] trace 评分跳过：{error}")
 
 
-def _build_metadata(args, driver, manifest, run_id, cases, summary) -> dict:
+def _build_metadata(args, driver, manifest, run_id, cases, summary, results=None) -> dict:
     try:
         commit = subprocess.run(
             ["git", "rev-parse", "HEAD"], cwd=str(ROOT), capture_output=True, text=True
         ).stdout.strip()
     except Exception:
         commit = "UNAVAILABLE"
+    # 隔离汇总：统计 baseline / mcp 的隔离校验结果
+    isolation_summary = _summarize_isolation(manifest)
+    if results is not None:
+        invalid = [r for r in results if r.extra.get("environment_invalid")]
+        isolation_summary["invalid_environment_runs"] = len(invalid)
+        isolation_summary["excluded_modes"] = sorted({r.mode for r in invalid})
+    isolation_summary["modes_reported"] = sorted(summary.keys())
     return {
         "agent": driver.config.agent,
         "agent_version": "CodeBuddy CN 1.106.1",
         "model": driver.config.model,
         "driver": "codebuddy-manual",
         "manual_execution": True,
-        "benchmark_version": "0.2.0",
+        "benchmark_version": "0.3.0",
         "git_commit": commit,
-        "started_at": manifest.get("entries", [{}])[0].get("workspace", ""),
+        "started_at": _now(),
         "finished_at": _now(),
         "runs_per_task": args.runs,
         "task_count": len(cases),
@@ -526,16 +562,75 @@ def _build_metadata(args, driver, manifest, run_id, cases, summary) -> dict:
         "mcp_config": {"mcp_enabled": True,
                        "mcp_servers": list(driver.config.mcp_servers.keys()),
                        "url": list(driver.config.mcp_servers.values())[0]["url"] if driver.config.mcp_servers else ""},
+        "isolation": isolation_summary,
         "environment": {
             "os": "darwin",
             "known_limitations": [
                 "fixture 为最小 TypeScript 工程，不等价于真实宿主插件运行环境",
-                "CodeBuddy 模型可能具有随机性；本执行 runs=1，不声称统计稳定",
+                "CodeBuddy 模型可能具有随机性；本执行 runs 样本量小，不声称统计稳定",
                 "token / cost 无法从 CodeBuddy 程序化获取，标记 UNAVAILABLE",
                 "baseline 是否真正禁用了全局 MCP 取决于 CodeBuddy 配置合并行为（已披露）",
+                "First Pass Success 因 CodeBuddy trace 无法区分首次候选实现与自修复，标记 UNAVAILABLE",
             ],
         },
         "summary": summary,
+    }
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except Exception:
+        return False
+
+
+def _rel_if_possible(path: str | None, root: Path) -> str | None:
+    if not path:
+        return path
+    p = Path(path)
+    if p.is_absolute() and _is_relative_to(p, root):
+        return str(p.relative_to(root))
+    return str(p)
+
+
+def verify_isolation(entry: dict, workspace: Path, root: Path) -> dict:
+    """Preflight / post-hoc 隔离校验。
+
+    baseline 模式：期望工作区不含 .codebuddy/mcp.json；
+    mcp 模式：期望工作区含 .codebuddy/mcp.json。
+
+    返回 mode / mcp_expected / mcp_detected / isolation_verified。
+    若工作区文件不存在（无法检查），isolation_verified = UNAVAILABLE。
+    """
+    mode = entry.get("mode", "baseline")
+    mcp_expected = mode == "mcp"
+    mcp_json = workspace / ".codebuddy" / "mcp.json"
+    if not workspace.exists():
+        return {
+            "mode": mode, "mcp_expected": mcp_expected,
+            "mcp_detected": "UNAVAILABLE", "isolation_verified": "UNAVAILABLE",
+            "note": "workspace not found on disk; cannot verify isolation",
+        }
+    mcp_detected = bool(mcp_json.exists())
+    verified = (mcp_detected == mcp_expected)
+    return {
+        "mode": mode, "mcp_expected": mcp_expected,
+        "mcp_detected": mcp_detected, "isolation_verified": verified,
+    }
+
+
+def _summarize_isolation(manifest: dict) -> dict:
+    entries = manifest.get("entries", [])
+    baseline = [e for e in entries if e.get("mode") != "mcp"]
+    mcp = [e for e in entries if e.get("mode") == "mcp"]
+    # 隔离校验在 import 时重算；此处仅做轻量计数（import 会把 isolation 写进 extra）。
+    return {
+        "method": "workspace .codebuddy/mcp.json presence check",
+        "baseline_workspaces": len(baseline),
+        "mcp_workspaces": len(mcp),
+        "note": "per-run isolation_verified 见各 result.extra.isolation；"
+                "baseline 若检测到 MCP 配置则该 run 不计入正式 Baseline（INVALID_ENVIRONMENT）。",
     }
 
 
@@ -651,6 +746,12 @@ def _write_real_comparison(path: Path, all_results: list[CaseResult],
         else:
             delta = "-"
         lines.append(f"| {label} | {b} | {mc} | {delta} |")
+    lines.append("")
+
+    # First Pass 说明（UNAVAILABLE 的语义解释）
+    lines.append("> **First Pass Success Rate = UNAVAILABLE**：当前 CodeBuddy trace 无法可靠区分")
+    lines.append("> 「首次候选实现」与「后续自修复」，因此不把 Final Success 当作 First Pass，")
+    lines.append("> 也不伪造该指标。详见 § 已知限制。")
     lines.append("")
 
     # Per-task

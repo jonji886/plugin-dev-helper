@@ -28,13 +28,34 @@
       "reference_solution": "solutions/T01/vm.ts",
       "task_prompt": "在 vm.ts 中实现 exitMiniapp 函数：调用酷家乐插件 SDK 提供的退出小程序 API。",
       "expected_behavior": "调用 IDP.Miniapp.exit()，无参数，返回 void。",
-      "reference_symbols": ["IDP.Miniapp.exit"],
-      "mcp_tools_expected": ["get_api", "search_docs"],
+      "reference_symbols": [
+        "IDP.Miniapp.exit"
+      ],
+      "mcp_tools_expected": [
+        "get_api",
+        "search_docs"
+      ],
       "acceptance": {
         "typecheck": true,
         "build": true,
         "initial_expect_fail": true,
-        "tests": ["contains:IDP.Miniapp.exit"]
+        "tests": [
+          "contains:IDP.Miniapp.exit"
+        ]
+      },
+      "tool_expectation": {
+        "required_tools": [
+          "get_api",
+          "search_docs"
+        ],
+        "optional_tools": [],
+        "acceptable_tool_sets": [
+          [
+            "get_api",
+            "search_docs"
+          ]
+        ],
+        "forbidden_tools": []
       }
     },
     {
@@ -46,13 +67,37 @@
       "reference_solution": "solutions/T02/vm.ts",
       "task_prompt": "在 vm.ts 中实现 upload 函数：调用 SDK 的上传临时数据 API，参数由函数入参 miniappId 与 data 构造。",
       "expected_behavior": "调用 IDP.Miniapp.uploadDataAsync({ miniappId, data })，参数符合 MiniappUploadDataOption（miniappId: string, data: string）。",
-      "reference_symbols": ["IDP.Miniapp.uploadDataAsync", "MiniappUploadDataOption"],
-      "mcp_tools_expected": ["get_api", "get_type"],
+      "reference_symbols": [
+        "IDP.Miniapp.uploadDataAsync",
+        "MiniappUploadDataOption"
+      ],
+      "mcp_tools_expected": [
+        "get_api",
+        "get_type"
+      ],
       "acceptance": {
         "typecheck": true,
         "build": true,
         "initial_expect_fail": true,
-        "tests": ["contains:uploadDataAsync", "contains:miniappId", "contains:data"]
+        "tests": [
+          "contains:uploadDataAsync",
+          "contains:miniappId",
+          "contains:data"
+        ]
+      },
+      "tool_expectation": {
+        "required_tools": [
+          "get_api",
+          "get_type"
+        ],
+        "optional_tools": [],
+        "acceptable_tool_sets": [
+          [
+            "get_api",
+            "get_type"
+          ]
+        ],
+        "forbidden_tools": []
       }
     },
     {
@@ -64,13 +109,36 @@
       "reference_solution": "solutions/T03/vm.ts",
       "task_prompt": "在 vm.ts 中实现 isWardrobe 函数：判断当前是否处于衣柜工具，返回 boolean。",
       "expected_behavior": "调用 IDP.Custom.Common.getCurrentToolType() 并与 IDP.Custom.Common.ToolType.Wardrobe 比较。",
-      "reference_symbols": ["IDP.Custom.Common.getCurrentToolType", "IDP.Custom.Common.ToolType.Wardrobe"],
-      "mcp_tools_expected": ["get_api", "get_type"],
+      "reference_symbols": [
+        "IDP.Custom.Common.getCurrentToolType",
+        "IDP.Custom.Common.ToolType.Wardrobe"
+      ],
+      "mcp_tools_expected": [
+        "get_api",
+        "get_type"
+      ],
       "acceptance": {
         "typecheck": true,
         "build": true,
         "initial_expect_fail": true,
-        "tests": ["contains:getCurrentToolType", "contains:ToolType.Wardrobe"]
+        "tests": [
+          "contains:getCurrentToolType",
+          "contains:ToolType.Wardrobe"
+        ]
+      },
+      "tool_expectation": {
+        "required_tools": [
+          "get_api",
+          "get_type"
+        ],
+        "optional_tools": [],
+        "acceptable_tool_sets": [
+          [
+            "get_api",
+            "get_type"
+          ]
+        ],
+        "forbidden_tools": []
       }
     },
     {
@@ -82,13 +150,34 @@
       "reference_solution": "solutions/T04/vm.ts",
       "task_prompt": "在 vm.ts 中实现 sendToUi 函数：把 data 发送到插件 UI（iframe）。",
       "expected_behavior": "调用 IDP.Miniapp.view.defaultFrame.postMessage(data, '*')。",
-      "reference_symbols": ["IDP.Miniapp.view.defaultFrame.postMessage"],
-      "mcp_tools_expected": ["get_api", "get_type"],
+      "reference_symbols": [
+        "IDP.Miniapp.view.defaultFrame.postMessage"
+      ],
+      "mcp_tools_expected": [
+        "get_api",
+        "get_type"
+      ],
       "acceptance": {
         "typecheck": true,
         "build": true,
         "initial_expect_fail": true,
-        "tests": ["contains:defaultFrame.postMessage"]
+        "tests": [
+          "contains:defaultFrame.postMessage"
+        ]
+      },
+      "tool_expectation": {
+        "required_tools": [
+          "get_api",
+          "get_type"
+        ],
+        "optional_tools": [],
+        "acceptable_tool_sets": [
+          [
+            "get_api",
+            "get_type"
+          ]
+        ],
+        "forbidden_tools": []
       }
     },
     {
@@ -100,13 +189,34 @@
       "reference_solution": "solutions/T05/vm.ts",
       "task_prompt": "在 vm.ts 中实现 listenUiMessages 函数：监听 UI 发来的消息并回调 handler(data)。",
       "expected_behavior": "调用 IDP.Miniapp.view.defaultFrame.onMessageReceive((data, origin) => handler(data))。",
-      "reference_symbols": ["IDP.Miniapp.view.defaultFrame.onMessageReceive"],
-      "mcp_tools_expected": ["get_api", "get_type"],
+      "reference_symbols": [
+        "IDP.Miniapp.view.defaultFrame.onMessageReceive"
+      ],
+      "mcp_tools_expected": [
+        "get_api",
+        "get_type"
+      ],
       "acceptance": {
         "typecheck": true,
         "build": true,
         "initial_expect_fail": true,
-        "tests": ["contains:onMessageReceive"]
+        "tests": [
+          "contains:onMessageReceive"
+        ]
+      },
+      "tool_expectation": {
+        "required_tools": [
+          "get_api",
+          "get_type"
+        ],
+        "optional_tools": [],
+        "acceptable_tool_sets": [
+          [
+            "get_api",
+            "get_type"
+          ]
+        ],
+        "forbidden_tools": []
       }
     },
     {
@@ -118,13 +228,36 @@
       "reference_solution": "solutions/T06/vm.ts",
       "task_prompt": "vm.ts 中的 setWindowOptions 编译失败，请修复它，使窗口可最小化。",
       "expected_behavior": "调用 IDP.Miniapp.view.setContainerOptions(IDP.Miniapp.view.defaultFrame, { minimizable: true })，frame 参数不能省略。",
-      "reference_symbols": ["IDP.Miniapp.view.setContainerOptions", "MainMountPointOptions"],
-      "mcp_tools_expected": ["get_api", "get_type"],
+      "reference_symbols": [
+        "IDP.Miniapp.view.setContainerOptions",
+        "MainMountPointOptions"
+      ],
+      "mcp_tools_expected": [
+        "get_api",
+        "get_type"
+      ],
       "acceptance": {
         "typecheck": true,
         "build": true,
         "initial_expect_fail": true,
-        "tests": ["contains:setContainerOptions", "contains:minimizable"]
+        "tests": [
+          "contains:setContainerOptions",
+          "contains:minimizable"
+        ]
+      },
+      "tool_expectation": {
+        "required_tools": [
+          "get_api",
+          "get_type"
+        ],
+        "optional_tools": [],
+        "acceptable_tool_sets": [
+          [
+            "get_api",
+            "get_type"
+          ]
+        ],
+        "forbidden_tools": []
       }
     },
     {
@@ -136,13 +269,38 @@
       "reference_solution": "solutions/T07/vm.ts",
       "task_prompt": "vm.ts 中调用了一个不存在的 API（exitMiniapp），请查证并修正为正确的退出 API。",
       "expected_behavior": "将 IDP.Miniapp.exitMiniapp() 修正为 IDP.Miniapp.exit()。",
-      "reference_symbols": ["IDP.Miniapp.exit"],
-      "mcp_tools_expected": ["get_api", "validate_api_usage", "search_docs"],
+      "reference_symbols": [
+        "IDP.Miniapp.exit"
+      ],
+      "mcp_tools_expected": [
+        "get_api",
+        "validate_api_usage",
+        "search_docs"
+      ],
       "acceptance": {
         "typecheck": true,
         "build": true,
         "initial_expect_fail": true,
-        "tests": ["contains:IDP.Miniapp.exit", "not_contains:exitMiniapp"]
+        "tests": [
+          "contains:IDP.Miniapp.exit",
+          "not_contains:exitMiniapp"
+        ]
+      },
+      "tool_expectation": {
+        "required_tools": [
+          "get_api",
+          "validate_api_usage",
+          "search_docs"
+        ],
+        "optional_tools": [],
+        "acceptable_tool_sets": [
+          [
+            "get_api",
+            "validate_api_usage",
+            "search_docs"
+          ]
+        ],
+        "forbidden_tools": []
       }
     },
     {
@@ -154,13 +312,40 @@
       "reference_solution": "solutions/T08/vm.ts",
       "task_prompt": "vm.ts 中 uploadDataAsync 的参数写错了字段名（dat），请查证正确字段并修复。",
       "expected_behavior": "将 { miniappId, dat } 修正为 { miniappId, data }。",
-      "reference_symbols": ["IDP.Miniapp.uploadDataAsync", "MiniappUploadDataOption"],
-      "mcp_tools_expected": ["get_api", "get_type", "validate_api_usage"],
+      "reference_symbols": [
+        "IDP.Miniapp.uploadDataAsync",
+        "MiniappUploadDataOption"
+      ],
+      "mcp_tools_expected": [
+        "get_api",
+        "get_type",
+        "validate_api_usage"
+      ],
       "acceptance": {
         "typecheck": true,
         "build": true,
         "initial_expect_fail": true,
-        "tests": ["contains:miniappId", "contains:data", "not_contains:dat:"]
+        "tests": [
+          "contains:miniappId",
+          "contains:data",
+          "not_contains:dat:"
+        ]
+      },
+      "tool_expectation": {
+        "required_tools": [
+          "get_api",
+          "get_type",
+          "validate_api_usage"
+        ],
+        "optional_tools": [],
+        "acceptable_tool_sets": [
+          [
+            "get_api",
+            "get_type",
+            "validate_api_usage"
+          ]
+        ],
+        "forbidden_tools": []
       }
     },
     {
@@ -172,13 +357,34 @@
       "reference_solution": "solutions/T09/vm.ts",
       "task_prompt": "实现 closeMiniapp 函数：调用 SDK 中「关闭小程序」的 API（IDP.Miniapp.closeMiniapp）。",
       "expected_behavior": "Agent 通过 MCP 查证后明确报告该 API 不存在，不编造调用；代码不得包含不存在的 API，可用注释说明并给出最接近的真实 API（IDP.Miniapp.exit）。",
-      "reference_symbols": ["IDP.Miniapp.exit"],
-      "mcp_tools_expected": ["get_api", "search_docs"],
+      "reference_symbols": [
+        "IDP.Miniapp.exit"
+      ],
+      "mcp_tools_expected": [
+        "get_api",
+        "search_docs"
+      ],
       "acceptance": {
         "typecheck": true,
         "build": true,
         "initial_expect_fail": false,
-        "tests": ["not_contains:IDP.Miniapp.closeMiniapp("]
+        "tests": [
+          "not_contains:IDP.Miniapp.closeMiniapp("
+        ]
+      },
+      "tool_expectation": {
+        "required_tools": [
+          "get_api",
+          "search_docs"
+        ],
+        "optional_tools": [],
+        "acceptable_tool_sets": [
+          [
+            "get_api",
+            "search_docs"
+          ]
+        ],
+        "forbidden_tools": []
       }
     },
     {
@@ -190,13 +396,36 @@
       "reference_solution": "solutions/T10/vm.ts",
       "task_prompt": "实现 placeWindow 函数：把插件窗口摆到合适的位置并允许最小化。字段名和可选性请以 SDK 类型定义为准。",
       "expected_behavior": "先查 setContainerOptions 与 MainMountPointOptions，再写出符合类型定义的参数（如 windowMode、minimizable 等合法字段）。",
-      "reference_symbols": ["IDP.Miniapp.view.setContainerOptions", "MainMountPointOptions"],
-      "mcp_tools_expected": ["get_api", "get_type"],
+      "reference_symbols": [
+        "IDP.Miniapp.view.setContainerOptions",
+        "MainMountPointOptions"
+      ],
+      "mcp_tools_expected": [
+        "get_api",
+        "get_type"
+      ],
       "acceptance": {
         "typecheck": true,
         "build": true,
         "initial_expect_fail": true,
-        "tests": ["contains:setContainerOptions", "contains:minimizable"]
+        "tests": [
+          "contains:setContainerOptions",
+          "contains:minimizable"
+        ]
+      },
+      "tool_expectation": {
+        "required_tools": [
+          "get_api",
+          "get_type"
+        ],
+        "optional_tools": [],
+        "acceptable_tool_sets": [
+          [
+            "get_api",
+            "get_type"
+          ]
+        ],
+        "forbidden_tools": []
       }
     }
   ]

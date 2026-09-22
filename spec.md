@@ -172,13 +172,15 @@ Task Runtime 与 MCP / Chat 一样调用同一个 `ProjectValidator`。Benchmark
 
 | 组件 | 位置 | 现状 |
 |---|---|---|
-| Project Validator | `mcp_server/services/project_validator.py` | 五类检查：STRUCTURE / MANIFEST / RULE / API / BUILD；统一 Issue（issue_id/severity/category/code/file/line/evidence/suggested_fix/repairable）；CORS/OPTIONS/HTTP 探活标记 `runtime_required=True`（WARNING，不静态宣布通过） |
-| Task Runtime | `agent/runtime/task_runtime.py` | 状态机驱动生命周期、SQLite 持久化、Checkpoint、`resume()` 从最新 checkpoint 恢复、Retry（`errors.py` 策略）、ArtifactVersion、Trace。**边界**：`_do_build` 在缺少 `tsc_cmd` 时不真正构建，显式标注「build skipped」而非伪造通过 |
+| Project Validator | `mcp_server/services/project_validator.py` | 五类检查：STRUCTURE / MANIFEST / RULE / API / BUILD；统一 Issue（issue_id/severity/category/code/file/line/evidence/suggested_fix/repairable）；CORS/OPTIONS/HTTP 探活标记 `runtime_required=True`（WARNING，不静态宣布通过）；`BUILD_FAILED` 在配置了 build（`tsc_cmd`）时为 `HIGH` 且 `valid=false`（交付阻断），未配置 build 时不产生该 Issue |
+| Task Runtime | `agent/runtime/task_runtime.py` | 状态机驱动生命周期、SQLite 持久化、Checkpoint、`resume()` 从最新 checkpoint 恢复、**Runtime Retry（真正消费 `RetryPolicy`）**、ArtifactVersion、Trace、**Build Gate** |
+| Runtime Retry | `agent/runtime/task_runtime.py::_do_generate` | 仅对 `RETRYABLE`（Provider 超时 / 429 / 5xx / 临时网络 / MCP 临时超时）退避重试；`NON_RETRYABLE`（401/403/权限/配置）**立即失败不重试**；`REPAIRABLE` 交给 Repair Loop；耗尽 → `FAILED / RETRY_EXHAUSTED`，保留 `last_error/attempts/taxonomy`；每次尝试落 Trace（`AGENT_CALL_STARTED` / `AGENT_CALL_FAILED` / `RETRY_SCHEDULED`） |
+| Build Gate | `agent/runtime/task_runtime.py::_do_build` | 配置 `build_cmd` 时用 `subprocess` 真正执行（受控配置，非 LLM 输出），捕获 exit_code / stdout / stderr / duration_ms / timeout；`exit_code==0` → `build_verified=true`，否则 `BUILD_FAILED` 并阻断 VERIFIED；**未配置 → `BUILD_SKIPPED`（`build_verified=false`），绝不冒充编译通过** |
 | State Machine | `agent/runtime/state_machine.py` | 显式合法迁移表，非法迁移抛 `IllegalTransitionError` |
 | Artifact Version | `agent/runtime/task_runtime.py::_save_artifact` | 每次产出 v1/v2…，与 TraceEvent 关联 |
 | Checkpoint / Resume | `agent/runtime/task_runtime.py` + `repositories.py` | checkpoint 落盘（含 validation_*.json）；`resume()` 从中断处继续 |
 | Repair Loop | `agent/runtime/repair.py` | `BoundedRepairLoop(max_attempts=2)`；证据驱动，仅取上轮 `repairable` 且 severity∈{CRITICAL,HIGH} 的 Issue；修复后生成新 ArtifactVersion 并**重校验**；默认 `EvidenceBasedRepairDriver` 为确定性（无 LLM，仅替换 `API_UNKNOWN_API` 幻觉符号） |
-| Failure Taxonomy | `agent/runtime/errors.py` | RETRIEVAL / KNOWLEDGE_MISSING / API_HALLUCINATION / API_PARAMETER / RULE_VIOLATION / MANIFEST / PERMISSION / SDK_VERSION / MODEL / PROVIDER / MCP / VALIDATION / BUILD / RUNTIME / CHECKPOINT / UNKNOWN；附 `FailureClass`(RETRYABLE/REPAIRABLE/NON_RETRYABLE) 与 `RetryPolicy` |
+| Failure Taxonomy | `agent/runtime/errors.py` | RETRIEVAL / KNOWLEDGE_MISSING / API_HALLUCINATION / API_PARAMETER / RULE_VIOLATION / MANIFEST / PERMISSION / SDK_VERSION / MODEL / PROVIDER / MCP / VALIDATION / BUILD / RUNTIME / CHECKPOINT / UNKNOWN；附 `FailureClass`(RETRYABLE/REPAIRABLE/NON_RETRYABLE)、`RetryPolicy` 与异常分类器 `classify_agent_error` |
 | Trace | `agent/runtime/trace.py` | `TaskTraceRecorder`（Task→Run→Step）；`analyze_root_cause()`（First Divergence Principle）把 Issue 映射到 Taxonomy 并落 FailureRecord |
 
 # 10. Reliability Model
@@ -186,15 +188,50 @@ Task Runtime 与 MCP / Chat 一样调用同一个 `ProjectValidator`。Benchmark
 核心不变量：**LLM 输出不可信**。
 
 ```text
+Agent / Provider（瞬时错误）
+        ↓
+Retry Policy（RETRYABLE 才重试；NON_RETRYABLE 立即失败；耗尽 RETRY_EXHAUSTED / Trace）
+        ↓
 LLM / Agent output（不可信）
         ↓
-Structured / deterministic validation（Project Validator，不依赖 LLM）
+Static Validation（Project Validator，不依赖 LLM）
+        ↓
+Build Gate（配置了 build 命令才真正执行；未配置 = SKIPPED，不冒充通过）
         ↓
    ┌─────────────┬──────────────┐
    PASS          REPAIR          REJECT / FAILED
    ↓             ↓（有界 2 次）       ↓
   交付        重新校验           记录 FailureRecord + 根因
+
+进程崩溃 → Checkpoint / Resume（从最新 checkpoint 继续，不重复已完成步骤）
 ```
+
+**Retry ≠ Repair ≠ Resume**（三者不可混用）：
+
+| 机制 | 触发条件 | 行为 |
+|---|---|---|
+| **Retry** | Agent / Provider / MCP **瞬时**错误（超时、429/5xx、临时网络） | 按 `RetryPolicy` 退避重试；`NON_RETRYABLE`（401/403/权限/配置）**不重试**；耗尽 → `FAILED / RETRY_EXHAUSTED` |
+| **Repair** | 首次生成**成功**但确定性校验**失败**（API 幻觉 / 参数错误等 REPAIRABLE） | 证据驱动的**有界**修复（默认 2 次），修复后**重校验** |
+| **Resume** | 进程崩溃 / 中断 | 从最新 Checkpoint 继续，不重复已完成步骤 |
+
+**Retry 设计**（`agent/runtime/errors.py`）：
+
+- `RetryPolicy(max_attempts, backoff_base_seconds, backoff_factor)`；第 n 次失败后等待
+  `backoff_base_seconds × backoff_factor^(n-1)`（指数退避，测试可注入 `backoff=0` / fake sleeper）。
+- 分类：**RETRYABLE**（PROVIDER 超时 / 429 / 5xx、MCP 临时超时）/ **NON_RETRYABLE**（PERMISSION 401/403、非法配置）/
+  **REPAIRABLE**（API 幻觉、代码校验失败，交给 Repair）。
+- 每次尝试产生 Trace：`AGENT_CALL_STARTED` → `AGENT_CALL_FAILED{taxonomy,retryable,attempt,max_attempts}`
+  → `RETRY_SCHEDULED{attempt,backoff_ms}` → `AGENT_CALL_STARTED(attempt=2)…`。
+- 耗尽后：`status=FAILED`、`reason=RETRY_EXHAUSTED`，保留 `last_error` 与 `attempts`。
+
+**Build 语义**：`Static Validation ≠ Build Verification`。状态区分：
+
+| 状态 | 含义 |
+|---|---|
+| `STATIC_VALIDATED` | 静态校验通过（结构/契约/API/RULE），未执行构建 |
+| `BUILD_VERIFIED` | 构建命令真实执行且 `exit_code == 0`（`build_verified=true`） |
+| `BUILD_SKIPPED` | 未配置 build 命令 → 显式跳过，`build_verified=false`，**不代表编译通过** |
+| `BUILD_FAILED` | 构建命令 `exit_code != 0` 或超时 → 阻断交付，`severity=HIGH` |
 
 区分三类可靠性：
 
@@ -213,25 +250,55 @@ Structured / deterministic validation（Project Validator，不依赖 LLM）
 | 检索门禁 | 不调 LLM 的检索质量门禁 | 否 | 是 | 可执行 | `python scripts/check_retrieval_gate.py` |
 | MCP L0（工具级） | 契约/边界/not_found/降级/异常隔离/幂等（`mcp_golden.json`，58 条） | 否 | 是 | 已执行，GATE PASS | `python scripts/run_mcp_eval.py` |
 | MCP L1（多轮序列） | 跨步骤引用/指代传递（`mcp_sequences.json`，6 条） | 否 | 是 | 已执行，6/6 | `python scripts/run_mcp_sequences.py` |
-| Agent L2（轨迹） | 工具选择 P/R/F1、符号覆盖、冗余率、序列合规、拒答正确性 | 否（消费轨迹） | 是 | 已有真实轨迹（本仓库 Benchmark run） | `python scripts/check_agent_trace.py benchmark/traces/<run>.json` |
-| Agent E2E L3 | Baseline vs MCP 端到端任务成功率 | 是（真实 Agent） | 评分确定性 | 已执行（manual，runs=1，见 §12） | `python scripts/run_coding_agent_benchmark.py --driver codebuddy-manual --prepare/--import` |
+| Agent L2（轨迹） | 工具选择 P/R/F1、符号覆盖、冗余率、序列合规、拒答正确性、required/optional/acceptable/forbidden 工具期望 | 否（消费轨迹） | 是 | 已有真实轨迹（本仓库 Benchmark run） | `python scripts/check_agent_trace.py benchmark/traces/<run>.json` |
+| Agent E2E L3 | Baseline vs MCP 端到端任务成功率 | 是（真实 Agent） | 评分确定性 | 已执行（manual，runs=1，见 §12）；First Pass = UNAVAILABLE | `python scripts/run_coding_agent_benchmark.py --driver codebuddy-manual --prepare/--import` |
 | MCP L4（稳定性） | 多轮 × 工具 + 并发 + 故障恢复 + 状态泄漏 | 否 | 是 | 已执行，GATE PASS | `python scripts/check_mcp_stability.py` |
 
-判定原则：**核心成功判定使用确定性指标（Validator + acceptance + 轨迹评分），不以 LLM Judge 为准。**
+判定原则：
+
+1. **核心成功判定使用确定性指标（Validator + acceptance + 轨迹评分），不以 LLM Judge 为准。**
+2. **Task Outcome > Prescribed Tool Path**：Tool 行为评测不覆盖任务结果。优先级为
+   任务是否完成 → 最终代码/API 是否正确 → 是否幻觉 → 是否违反约束 → 工具路径是否合理 → 是否冗余调用。
+   评测区分 `required_tools` / `optional_tools` / `acceptable_tool_sets` / `forbidden_tools`：
+   `recall` 只考核 `required` 覆盖，`precision` 只惩罚「超出 required∪optional」的调用，
+   **高效 Agent 用更少工具完成任务不应被惩罚**。不为提升 Tool Recall 而修改 Agent Prompt（避免污染实验）。
+3. **NOT_RUN / UNAVAILABLE ≠ 0**：未执行标记 `NOT_RUN`，无法获取标记 `UNAVAILABLE`，绝不填 0 或估算。
 
 # 12. CodeBuddy Benchmark（Baseline vs MCP）
 
-真实执行（`benchmark/results/codebuddy-20260921-155307/`）：
+## 12.1 方法与控制变量
 
-- **Agent**：CodeBuddy（本机 CLI 存在，但无 headless 采集接口；采用 manual/import 驱动）
+- **Agent**：CodeBuddy（本机 CLI 存在，但无 headless 采集接口；采用 manual/import 驱动）。
+  不替换为 Codex / Claude Code / Cursor。
 - **控制变量**：唯一差异为是否可访问 Plugin Dev Helper MCP；Agent / 任务集 / fixture / evaluator /
   validator / acceptance 固定。模型元数据 CodeBuddy 未提供 → `UNAVAILABLE`。
-- **任务**：10 个（API 查找 / 类型构造 / 枚举 / UI-VM 通信 / 事件 / 修改既有代码 / 修错误 API /
-  修错误参数 / 拒绝编造 / 信息不足先查询）
-- **重复**：1 run/task（**不声称统计稳定**）
-- **Trace**：MCP 条件采集真实 MCP 调用轨迹，归一化到 canonical schema，由 `check_agent_trace.py` 评分；
-  baseline 无 MCP 调用轨迹
-- **Evaluator**：`ProjectValidator`（确定性）+ acceptance 字符串断言，不使用 LLM Judge
+- **任务**：以当前 `benchmark/tasks.json` 为准（当前 10 个），**不硬编码**。
+- **重复（runs）**：支持 `--runs N`。每次 run 使用**独立 workspace**（`workspaces/<mode>/<task>-r<k>`），
+  从同一 fixture **干净复制**，不复用上次被修改的 workspace。正式建议 10 tasks × 3 runs × 2 conditions。
+- **最近公开结果**：`benchmark/results/codebuddy-20260921-155307/`（**1 run/task**，样本量小，不声称统计稳定）。
+- **结果目录**：`benchmark/results/codebuddy-<timestamp>/`；旧结果保留为 Historical Run，不覆盖、不篡改。
+
+## 12.2 隔离（Isolation）
+
+- **MCP 条件**：workspace 写入 `.codebuddy/mcp.json`，使 MCP 真实可用。
+- **Baseline 条件**：workspace **不写入** MCP 配置。仅靠「工作区不写配置」不构成强隔离——
+  CodeBuddy 仍可能合并用户级 / 全局配置。因此增加 **Isolation Verification**：
+  - import 时对每个 run 检查工作区是否含 `.codebuddy/mcp.json`（`verify_isolation`）；
+  - baseline 检测到 MCP 配置 → 该 run 标记 `INVALID_ENVIRONMENT`，**排除出正式 Baseline 聚合**；
+  - 工作区缺失无法检查 → `isolation_verified = UNAVAILABLE`；
+  - metadata 记录 `mode / mcp_expected / mcp_detected / isolation_verified`。
+
+## 12.3 指标语义
+
+- **Final Success**：最终验收通过（Validator + acceptance）。
+- **First Pass Success**：首次候选实现**未经修复**即通过验收。
+  **当前 CodeBuddy 轨迹无法可靠区分「首次候选实现」与「后续自修复」→ 标记 `UNAVAILABLE`**，
+  不把 Final Success 当作 First Pass，不伪造成功率。数据模型：`first_pass ∈ {true,false,null}`，
+  `first_pass_basis ∈ {trace_observed, unavailable}`。
+- **工具期望**：`required_tools / optional_tools / acceptable_tool_sets / forbidden_tools`；
+  Task Outcome 优先于 Tool Path（见 §11）。
+- **聚合**：多次 run 报 `overall / per-task / run_count`（如 `T07: Baseline 1/3, MCP 3/3`），
+  样本量小时不做过度统计包装。
 
 结果（1 run/task）：
 
@@ -242,9 +309,19 @@ Structured / deterministic validation（Project Validator，不依赖 LLM）
 | Hallucination Rate | 0.3 | 0.0 | -0.3 |
 | Constraint Violation Rate | 0.1 | 0.0 | -0.1 |
 | Abstention Correct Rate | 0.5 | 1.0 | +0.5 |
+| First Pass Success Rate | UNAVAILABLE | UNAVAILABLE | — |
 | Latency / Token | UNAVAILABLE | UNAVAILABLE | — |
 
-**Reference Driver**（`scripts/agent_drivers/reference.py`）仍保留，仅用于 harness / evaluator 自检
+> 历史 run `codebuddy-20260921-155307` 使用旧语义（`first_pass = final_acceptance`），
+> 其 metadata 已标注为 legacy；新语义不再复用该字段，历史 JSON 不修改。
+
+## 12.4 手工 vs 自动
+
+- **自动**：`--prepare`（生成隔离工作区）/ `--import`（回灌 + 评估 + 聚合 + comparison）/ Import 时的隔离校验。
+- **手工**：在真实 CodeBuddy 中逐 workspace 执行任务（无 headless 采集接口）。
+- `codebuddy-cli` 驱动在无法采集时显式 `NOT_RUN`，不伪造。
+
+**Reference Driver**（`scripts/agent_drivers/reference.py`）保留，仅用于 harness / evaluator 自检
 （确定性 stand-in），**不是 Agent Benchmark**，其数据与真实 Agent 数据完全分开。
 
 # 13. Observability
@@ -279,22 +356,31 @@ Structured / deterministic validation（Project Validator，不依赖 LLM）
 - **Knowledge build 可复现**：`python scripts/run_pipeline.py` 产出 `data/knowledge/_index.json`、
   `data/graph/dependency_graph.json`、`data/chroma/`。
 - **RAG 回归门禁**：`eval/gate.json` 阈值（Recall@5 / Correctness 下降 ≤0.03，Citation Validity ≥0.90）。
-- **MCP deterministic gate**：`python scripts/run_mcp_eval.py` 与 `run_mcp_sequences.py` GATE PASS。
 - **Validator**：五类检查可运行；`validate_plugin_project` 对合法工程 `valid=true`。
 - **Runtime tests**：状态机非法迁移报错、Checkpoint/Resume 可用、Repair 有界收敛。
+- **Runtime Retry Tests**：瞬时错误重试成功（attempts=2）、重试耗尽 → `FAILED / RETRY_EXHAUSTED`、
+  不可重试错误立即失败、Repairable 走 Repair 而非 Retry、Retry Trace 顺序正确。
+- **Build Gate Tests**：build 成功 / 失败 / 超时 / 跳过（SKIPPED ≠ PASS）/「静态通过 + Build 失败 → 最终失败」。
+- **Benchmark Harness Tests**：`--runs N`、独立 workspace、隔离校验、First Pass = UNAVAILABLE、
+  相对路径、metadata 时间戳、required/optional/acceptable/forbidden 工具语义、多次 run 聚合。
 - **Benchmark harness**：`reference` 自检通过；`codebuddy-manual` 支持 prepare/import；
   `codebuddy-cli` 无法采集时显式 NOT_RUN。
-- **CodeBuddy 实验**：已完成一轮真实实验（runs=1），结果文件可复现。
-- **Documentation consistency**：本 SPEC 与 README 中的技术名词均可在代码中找到依据。
+- **MCP deterministic gate**：`run_mcp_eval.py` + `run_mcp_sequences.py` + `check_mcp_stability.py` GATE PASS。
+- **CodeBuddy 实验**：已完成一轮真实实验（runs=1），结果文件可复现；First Pass 标记 UNAVAILABLE。
+- **CI**：GitHub Actions 执行 `pytest tests/ -q`（含 Runtime Retry / Build Gate / Benchmark 单元测试），不依赖真实 CodeBuddy。
+- **Documentation consistency**：本 SPEC 与 README 中的技术名词均可在代码中找到依据；
+  README 的测试命令与 CI 一致。
 - **测试全绿**：`pytest tests/ -q`。
 
 # 16. Known Limitations
 
 - Fixture 是最小 TypeScript 工程，不等价于真实宿主插件运行环境。
-- 真实 CodeBuddy Benchmark 为 **1 run/task（manual）**，样本量小，不代表统计稳定结论。
+- 真实 CodeBuddy Benchmark 为 **1 run/task（manual）**，样本量小，不代表统计稳定结论；协议支持 `--runs N`。
+- **First Pass Success 因 CodeBuddy 轨迹无法区分首次候选实现与自修复，标记 `UNAVAILABLE`**，不估算、不伪造。
 - CodeBuddy 的 token / cost / latency 无法程序化获取 → `UNAVAILABLE`（不估算、不伪造）。
-- baseline 是否真正禁用全局 MCP 取决于 CodeBuddy 配置合并行为（已在 metadata 披露）。
-- `TaskRuntime._do_build` 在无 `tsc_cmd` 时不真正执行构建。
+- baseline 是否真正禁用全局 MCP 取决于 CodeBuddy 配置合并行为；仅能做工作区级 `verify_isolation`，无法保证全局配置合并。
+- `TaskRuntime` 的 Build Gate 仅当配置 `build_cmd` 时才真正构建；当前公开 Benchmark 未配置项目级 build 命令，走 acceptance 字符串断言。
+- Runtime Retry 仅覆盖 Agent / Provider 调用与 MCP 瞬时调用，未扩展为分布式任务重试。
 - ADR-003 提到「连续两轮 Issue 无变化即止损」，代码中未显式实现该判定。
 - 检索词法侧为自研关键字打分，非 BM25；`graph_builder/` 为空占位。
 - acceptance 基于字符串断言，注释中出现被禁符号也会导致 `not_contains` 失败（已在本轮 T07 中观察到）。
@@ -305,9 +391,9 @@ Structured / deterministic validation（Project Validator，不依赖 LLM）
 
 仅列**尚未实现且确有价值**的事项（不引入无需求支撑的复杂组件）：
 
-- Coding Agent Benchmark 自动化：补齐 CodeBuddy headless / transcript 采集，支持 `--runs N` 批量。
-- 扩大 Benchmark 任务集与重复次数，建立统计置信区间。
+- Coding Agent Benchmark 自动化：补齐 CodeBuddy headless / transcript 采集（当前为 manual/import）。
+- 扩大 Benchmark 任务集与重复次数（当前协议已支持 `--runs N`，可用真实 Agent 跑满 3 runs），建立统计置信区间。
 - Repair Loop 接入真实 LLM 驱动（当前默认确定性），并实现 ADR-003 的「无变化即止损」。
-- `TaskRuntime._do_build` 真正执行构建（配置 tsc）。
+- 为公开 Benchmark 配置项目级 `build_cmd` 并启用 Build Gate（当前走 acceptance 字符串断言）。
 - MCP 鉴权与内容安全过滤；`graph_builder/` 归位或删除空目录。
 - 依赖图的检索侧更深度利用（当前用于 graph expansion）。

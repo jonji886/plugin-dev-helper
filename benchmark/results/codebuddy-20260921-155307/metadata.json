@@ -6,6 +6,7 @@
   "manual_execution": true,
   "benchmark_version": "0.2.0",
   "git_commit": "63bfee0f0b9ce561c0b99cc789a7a31ce4b3f294",
+  "semantics_note": "[HISTORICAL RUN — values preserved unmodified] This run used legacy First Pass semantics: 'first_pass_success_rate' here equals task_success_rate (final acceptance), NOT true first-pass. New runs report First Pass as UNAVAILABLE when the CodeBuddy trace cannot distinguish a first-pass candidate from self-repair. This run also predates the metadata path fix, so 'started_at' below contains a workspace path (legacy bug); new runs use ISO 8601 timestamps and repository-relative paths.",
   "started_at": "/Users/jizhongjian/qoder_workspace/酷家乐插件开发助手/benchmark/results/workspaces/baseline/T01-r0",
   "finished_at": "2026-09-21T07:53:08.927538+00:00",
   "runs_per_task": 1,
