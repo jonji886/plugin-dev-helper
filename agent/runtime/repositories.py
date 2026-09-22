@@ -35,6 +35,11 @@ class TaskRepository:
 
     def _init(self) -> None:
         with self._connect() as conn:
+            # 兼容旧库：build_verified 列可能不存在（CREATE 仅对新库生效）
+            try:
+                conn.execute("ALTER TABLE tasks ADD COLUMN build_verified INTEGER NOT NULL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass
             conn.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS tasks (
@@ -42,6 +47,7 @@ class TaskRepository:
                     current_step TEXT NOT NULL DEFAULT '', input TEXT NOT NULL DEFAULT '',
                     workspace TEXT NOT NULL DEFAULT '', artifact_version TEXT NOT NULL DEFAULT 'v0',
                     repair_attempt INTEGER NOT NULL DEFAULT 0, max_repair_attempts INTEGER NOT NULL DEFAULT 2,
+                    build_verified INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, last_error TEXT NOT NULL DEFAULT ''
                 );
@@ -91,16 +97,18 @@ class TaskRepository:
             conn.execute(
                 """INSERT INTO tasks (
                     task_id, run_id, status, current_step, input, workspace, artifact_version,
-                    repair_attempt, max_repair_attempts, created_at, updated_at, last_error
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                    repair_attempt, max_repair_attempts, build_verified, created_at, updated_at, last_error
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(task_id) DO UPDATE SET
                     run_id=excluded.run_id, status=excluded.status, current_step=excluded.current_step,
                     input=excluded.input, workspace=excluded.workspace, artifact_version=excluded.artifact_version,
                     repair_attempt=excluded.repair_attempt, max_repair_attempts=excluded.max_repair_attempts,
+                    build_verified=excluded.build_verified,
                     updated_at=excluded.updated_at, last_error=excluded.last_error""",
                 (fields["task_id"], fields["run_id"], fields["status"], fields["current_step"],
                  fields["input"], fields["workspace"], fields["artifact_version"], fields["repair_attempt"],
-                 fields["max_repair_attempts"], fields["created_at"], fields["updated_at"], fields["last_error"]),
+                 fields["max_repair_attempts"], 1 if fields["build_verified"] else 0,
+                 fields["created_at"], fields["updated_at"], fields["last_error"]),
             )
 
     def get_task(self, task_id: str) -> Task | None:

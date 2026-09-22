@@ -13,11 +13,19 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import time
 from pathlib import Path
 from typing import Callable, Protocol
 from uuid import uuid4
 
-from agent.runtime.errors import ErrorTaxonomy
+from agent.runtime.errors import (
+    ErrorTaxonomy,
+    FailureClass,
+    RetryPolicy,
+    classify_agent_error,
+    classify_failure,
+)
 from agent.runtime.models import (
     ArtifactVersion,
     Checkpoint,
@@ -51,12 +59,22 @@ class TaskRuntime:
         repair_loop: BoundedRepairLoop,
         run_id: str | None = None,
         state_dir: str | None = None,
+        retry_policy: RetryPolicy | None = None,
+        build_cmd: list[str] | None = None,
+        sleeper: Callable[[float], None] | None = None,
+        build_timeout_seconds: float = 120.0,
     ):
         self.repository = repository
         self.validator = validator
         self.agent = agent
         self.repair_loop = repair_loop
         self.state_machine = TaskStateMachine()
+        self.retry_policy = retry_policy
+        # Build Gate 的真正构建命令（来自项目配置 / 系统配置 / 受控参数，绝不是 LLM 输出）。
+        # 为 None 时跳过构建（明确标记 SKIPPED，而非伪造通过）。
+        self.build_cmd = build_cmd
+        self.build_timeout_seconds = build_timeout_seconds
+        self._sleeper = sleeper or time.sleep
         self._run_id = run_id
         self._state_dir = Path(state_dir) if state_dir else Path(repository.database_path).parent
         self._state_dir.mkdir(parents=True, exist_ok=True)
@@ -149,24 +167,61 @@ class TaskRuntime:
         step = self._step(task, "generate")
         recorder.record("STEP_STARTED", step_id=step.step_id, status="running",
                         input_summary=task.input[:120])
-        try:
-            files = self.agent.generate(task.input, task.task_id)
+        max_attempts = self.retry_policy.max_attempts if self.retry_policy else 1
+        attempt = 0
+        while True:
+            attempt += 1
+            recorder.record("AGENT_CALL_STARTED", step_id=step.step_id, status="running",
+                            input_summary=task.input[:120],
+                            metadata={"attempt": attempt, "max_attempts": max_attempts})
+            try:
+                files = self.agent.generate(task.input, task.task_id)
+            except Exception as error:  # Agent / Provider 调用失败：按 Taxonomy 决定是否重试
+                taxonomy = classify_agent_error(error)
+                retryable = bool(
+                    self.retry_policy and self.retry_policy.should_retry(attempt, taxonomy)
+                )
+                recorder.record(
+                    "AGENT_CALL_FAILED", step_id=step.step_id, status="error",
+                    error_type=taxonomy.value, error_message=str(error)[:1000],
+                    metadata={"taxonomy": taxonomy.value, "retryable": retryable,
+                              "attempt": attempt, "max_attempts": max_attempts},
+                )
+                if retryable:
+                    backoff = self.retry_policy.next_backoff_seconds(attempt)
+                    recorder.record(
+                        "RETRY_SCHEDULED", step_id=step.step_id, status="running",
+                        error_type=taxonomy.value,
+                        output_summary=f"retry attempt {attempt + 1} after {backoff:.3f}s",
+                        metadata={"attempt": attempt, "max_attempts": max_attempts,
+                                  "backoff_ms": int(backoff * 1000)},
+                    )
+                    self._sleeper(backoff)
+                    continue
+                # 非可重试错误或重试耗尽：进入 FAILED（耗尽时显式标注 RETRY_EXHAUSTED）
+                exhausted = bool(self.retry_policy and attempt >= max_attempts
+                                and taxonomy in self.retry_policy.retryable)
+                self._fail_agent(
+                    task, recorder, step, "generate", error, taxonomy,
+                    attempts=attempt, reason="RETRY_EXHAUSTED" if exhausted else "AGENT_CALL_FAILED",
+                )
+                return
+            # 成功：落盘、建立版本、迁移状态
             self._write_files(task.workspace, files)
             version = self._save_artifact(task, "v1", "v0", generated=files)
             step.status = "COMPLETED"
             step.artifact_version = version
-            step.output_summary = f"generated {len(files)} files"
+            step.output_summary = f"generated {len(files)} files (attempt {attempt})"
             self.repository.save_step(step)
             recorder.record("ARTIFACT_CREATED", step_id=step.step_id,
-                            output_summary=f"version={version}, files={len(files)}")
+                            output_summary=f"version={version}, files={len(files)}, attempt={attempt}")
             recorder.record("STEP_COMPLETED", step_id=step.step_id, status="completed")
             task.artifact_version = version
             self._move(task, TaskStatus.GENERATING)
             self._checkpoint(task, recorder, next_action="validate",
                              completed_steps=["generate"])
             self.repository.save_task(task)
-        except Exception as error:  # 生成失败：按 Taxonomy 记录，进入 FAILED
-            self._fail_agent(task, recorder, step, "generate", error)
+            return
 
     def _do_validate(self, task: Task, recorder: TaskTraceRecorder) -> None:
         """GENERATING 阶段：运行校验并落盘结果，迁移到 VALIDATING 等待决策。"""
@@ -250,23 +305,103 @@ class TaskRuntime:
     def _do_build(self, task: Task, recorder: TaskTraceRecorder) -> None:
         step = self._step(task, "build")
         recorder.record("BUILD_STARTED", step_id=step.step_id, status="running")
-        # 无 tsc 环境时跳过构建（不伪造运行通过）
-        if not self.validator.tsc_cmd:
+        # 未配置 build 命令：明确 SKIPPED，绝不冒充「编译通过」
+        if not self.build_cmd:
             step.status = "COMPLETED"
-            step.output_summary = "build skipped (no tsc_cmd configured)"
+            step.output_summary = "build skipped (no build_cmd configured)"
             self.repository.save_step(step)
-            recorder.record("BUILD_COMPLETED", step_id=step.step_id,
-                            output_summary="skipped", metadata={"skipped": True})
+            task.build_verified = False
+            recorder.record("BUILD_SKIPPED", step_id=step.step_id,
+                            output_summary="skipped", metadata={
+                                "skipped": True,
+                                "build_verified": False,
+                                "reason": "BUILD_COMMAND_NOT_CONFIGURED",
+                            })
             self._move(task, TaskStatus.VERIFIED)
             self._checkpoint(task, recorder, next_action="complete",
                              completed_steps=self._completed(task, "build"))
             self.repository.save_task(task)
             return
-        # 配置了 tsc：真实构建（此处省略细节，沿用 ProjectValidator._build_check 的思路）
+        # 配置了 build 命令：真正用 subprocess 执行（命令来自受控配置，不是 LLM 输出）
+        started = time.time()
+        try:
+            proc = subprocess.run(
+                self.build_cmd, cwd=str(task.workspace), capture_output=True, text=True,
+                timeout=self.build_timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as error:
+            duration_ms = (time.time() - started) * 1000
+            self._record_build_failure(
+                task, recorder, step, "BUILD_FAILED",
+                exit_code=None, duration_ms=duration_ms,
+                stderr=f"build timed out after {self.build_timeout_seconds}s",
+                metadata={"timeout": True},
+            )
+            return
+        except (subprocess.SubprocessError, OSError) as error:
+            duration_ms = (time.time() - started) * 1000
+            self._record_build_failure(
+                task, recorder, step, "BUILD_FAILED",
+                exit_code=None, duration_ms=duration_ms,
+                stderr=str(error),
+                metadata={"execution_error": True},
+            )
+            return
+
+        duration_ms = (time.time() - started) * 1000
+        if proc.returncode != 0:
+            self._record_build_failure(
+                task, recorder, step, "BUILD_FAILED",
+                exit_code=proc.returncode, duration_ms=duration_ms,
+                stderr=(proc.stderr or proc.stdout)[:4000].strip(),
+                metadata={"exit_code": proc.returncode},
+            )
+            return
+
+        # 构建成功
         step.status = "COMPLETED"
         self.repository.save_step(step)
+        task.build_verified = True
+        recorder.record("BUILD_COMPLETED", step_id=step.step_id, status="completed",
+                        output_summary="build passed", metadata={
+                            "exit_code": 0,
+                            "duration_ms": round(duration_ms, 2),
+                            "build_verified": True,
+                        })
         self._move(task, TaskStatus.VERIFIED)
+        self._checkpoint(task, recorder, next_action="complete",
+                         completed_steps=self._completed(task, "build"))
         self.repository.save_task(task)
+
+    def _record_build_failure(
+        self, task: Task, recorder: TaskTraceRecorder, step: TaskStep,
+        event_type: str, exit_code, duration_ms: float, stderr: str, metadata: dict,
+    ) -> None:
+        step.status = "FAILED"
+        step.error = stderr[:1000]
+        self.repository.save_step(step)
+        task.build_verified = False
+        recorder.record(event_type, step_id=step.step_id, status="error",
+                        error_type=ErrorTaxonomy.BUILD.value,
+                        error_message=stderr[:1000], metadata={
+                            "exit_code": exit_code,
+                            "duration_ms": round(duration_ms, 2),
+                            "build_verified": False,
+                            **metadata,
+                        })
+        self._move(task, TaskStatus.FAILED)
+        task.last_error = f"build failed (exit_code={exit_code})"
+        self.repository.save_task(task)
+        recorder.record("TASK_FAILED", status="error",
+                        error_type=ErrorTaxonomy.BUILD.value,
+                        error_message=task.last_error)
+        from agent.runtime.trace import FailureRecord
+        self.repository.save_failure(FailureRecord(
+            task_id=task.task_id, run_id=task.run_id, failure_stage="build",
+            failure_type=ErrorTaxonomy.BUILD.value, failure_code="BUILD_FAILED",
+            evidence=stderr[:1000], recoverable=False, recommended_action="abort",
+            first_divergence=True,
+        ))
 
     def _do_complete(self, task: Task, recorder: TaskTraceRecorder) -> None:
         self._move(task, TaskStatus.COMPLETED)
@@ -277,25 +412,29 @@ class TaskRuntime:
 
     # ------------------------------------------------------------------ 失败处理
 
-    def _fail_agent(self, task, recorder, step, stage, error) -> None:
+    def _fail_agent(self, task, recorder, step, stage, error,
+                    taxonomy: ErrorTaxonomy | None = None,
+                    attempts: int | None = None,
+                    reason: str = "AGENT_CALL_FAILED") -> None:
         step.status = "FAILED"
         step.error = str(error)
         self.repository.save_step(step)
-        taxonomy = ErrorTaxonomy.MODEL
-        if "provider" in str(error).lower() or "timeout" in str(error).lower():
-            taxonomy = ErrorTaxonomy.PROVIDER
+        if taxonomy is None:
+            taxonomy = classify_agent_error(error)
         task.last_error = f"{stage} failed: {error}"
         task.status = TaskStatus.FAILED.value
         self.repository.save_task(task)
         recorder.record("STEP_FAILED", step_id=step.step_id, status="error",
                         error_type=taxonomy.value, error_message=str(error))
         recorder.record("TASK_FAILED", status="error", error_type=taxonomy.value,
-                        error_message=str(error))
+                        error_message=str(error),
+                        metadata={"attempts": attempts, "reason": reason})
         from agent.runtime.trace import FailureRecord
         self.repository.save_failure(FailureRecord(
             task_id=task.task_id, run_id=task.run_id, failure_stage=stage,
             failure_type=taxonomy.value, failure_code=str(type(error).__name__),
-            evidence=str(error), recoverable=True, recommended_action="retry",
+            evidence=str(error), recoverable=classify_failure(taxonomy) != FailureClass.NON_RETRYABLE,
+            recommended_action=_recommend_action(taxonomy),
             first_divergence=True,
         ))
 
@@ -376,6 +515,15 @@ class TaskRuntime:
 def _now() -> str:
     from datetime import datetime, timezone
     return datetime.now(timezone.utc).isoformat()
+
+
+def _recommend_action(taxonomy: ErrorTaxonomy) -> str:
+    cls = classify_failure(taxonomy)
+    if cls == FailureClass.RETRYABLE:
+        return "retry"
+    if cls == FailureClass.REPAIRABLE:
+        return "repair"
+    return "abort"
 
 
 def _result_from_dict(data: dict) -> ValidationResult:

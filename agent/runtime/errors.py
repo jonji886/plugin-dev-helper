@@ -69,6 +69,56 @@ def classify_failure(taxonomy: ErrorTaxonomy) -> FailureClass:
     return FailureClass.NON_RETRYABLE
 
 
+# ---------------------------------------------------------------------------
+# Agent 调用异常：让 Runtime / Driver 能把异常精确映射到 Taxonomy，而不是裸 except。
+# Retry 只认 RETRYABLE；Permission / Auth / 配置错误属于 NON_RETRYABLE，绝不重试。
+# ---------------------------------------------------------------------------
+
+
+class RetryableAgentError(Exception):
+    """瞬时错误（Provider 超时 / HTTP 429 / 5xx / 临时网络 / MCP 临时超时）。
+
+    这类错误应当走 Runtime RetryPolicy 退避重试，而不是立刻判 FAILED。
+    """
+
+    taxonomy: ErrorTaxonomy = ErrorTaxonomy.PROVIDER
+
+    def __init__(self, message: str = "", taxonomy: ErrorTaxonomy | None = None):
+        super().__init__(message)
+        if taxonomy is not None:
+            self.taxonomy = taxonomy
+
+
+class NonRetryableAgentError(Exception):
+    """不可重试错误（401 / 403 / 权限 / 配置非法 / 不支持的操作）。
+
+    这类错误必须立刻判 FAILED，绝不重试。
+    """
+
+    taxonomy: ErrorTaxonomy = ErrorTaxonomy.PERMISSION
+
+    def __init__(self, message: str = "", taxonomy: ErrorTaxonomy | None = None):
+        super().__init__(message)
+        if taxonomy is not None:
+            self.taxonomy = taxonomy
+
+
+def classify_agent_error(error: BaseException) -> ErrorTaxonomy:
+    """把一次 Agent 调用异常映射到 ErrorTaxonomy（优先按异常类型，其次按文本）。"""
+    if isinstance(error, RetryableAgentError):
+        return error.taxonomy
+    if isinstance(error, NonRetryableAgentError):
+        return error.taxonomy
+    text = str(error).lower()
+    if "401" in text or "403" in text or "permission" in text or "unauthorized" in text:
+        return ErrorTaxonomy.PERMISSION
+    if "timeout" in text or "429" in text or "5xx" in text or "provider" in text:
+        return ErrorTaxonomy.PROVIDER
+    if "mcp" in text:
+        return ErrorTaxonomy.MCP
+    return ErrorTaxonomy.RUNTIME
+
+
 @dataclass
 class RetryPolicy:
     """基于 Taxonomy 与次数 + 退避的重试策略。"""

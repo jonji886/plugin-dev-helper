@@ -205,6 +205,7 @@ class Task:
     artifact_version: str = "v0"
     repair_attempt: int = 0
     max_repair_attempts: int = 2
+    build_verified: bool = False  # Build Gate 是否真正执行并通过；未配置 build 命令时为 False
     created_at: str = field(default_factory=_now)
     updated_at: str = field(default_factory=_now)
     last_error: str = ""
@@ -220,6 +221,7 @@ class Task:
             "artifact_version": self.artifact_version,
             "repair_attempt": self.repair_attempt,
             "max_repair_attempts": self.max_repair_attempts,
+            "build_verified": self.build_verified,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "last_error": self.last_error,
@@ -237,6 +239,7 @@ class Task:
             artifact_version=data.get("artifact_version", "v0"),
             repair_attempt=data.get("repair_attempt", 0),
             max_repair_attempts=data.get("max_repair_attempts", 2),
+            build_verified=bool(data.get("build_verified", False)),
             created_at=data.get("created_at", ""),
             updated_at=data.get("updated_at", ""),
             last_error=data.get("last_error", ""),

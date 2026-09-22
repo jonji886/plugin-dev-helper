@@ -521,9 +521,11 @@ class ProjectValidator:
             return issues
         if proc.returncode != 0:
             snippet = "\n".join(proc.stderr.strip().splitlines()[:8])
+            # 当 build 被显式配置（tsc_cmd 不为空），构建失败属于「交付阻断」级错误：
+            # severity=HIGH 且 valid=False。未配置 build 时本分支不会到达（上面已提前返回）。
             issues.append(Issue(
                 issue_id="BUILD-FAILED",
-                severity="MEDIUM",
+                severity="HIGH",
                 category="BUILD",
                 code="BUILD_FAILED",
                 message="TypeScript 类型检查未通过。",
